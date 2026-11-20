@@ -1,0 +1,106 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0f0b08;
+  --foreground: #fff4ea;
+  --bg: #0f0b08;
+  --ink: #fff4ea;
+  --muted: #c9a88e;
+  --line: #3a2414;
+  --accent: #ff8a1f;
+  --accent-2: #ffa94d;
+  --accent-3: #f97316;
+  --accent-4: #fdba74;
+  --up: #3ddc97;
+  --down: #ff5c5c;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html,
+body {
+  min-height: 100%;
+  background: #0f0b08;
+  color: #fff4ea;
+}
+
+body {
+  font-family: var(--font-geist-sans), sans-serif;
+}
+
+body::before {
+  content: "";
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(900px 420px at 8% -10%, rgba(255, 138, 31, 0.16), transparent 55%),
+    radial-gradient(680px 380px at 100% 0%, rgba(249, 115, 22, 0.1), transparent 50%);
+  z-index: 0;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+.surface {
+  background: linear-gradient(180deg, #1a120c 0%, #140e0a 100%);
+  border: 1px solid #3a2414;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+}
+
+.surface-hover {
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.surface-hover:hover {
+  border-color: #ff8a1f;
+  box-shadow:
+    0 0 0 1px rgba(255, 138, 31, 0.28),
+    0 0 28px rgba(255, 138, 31, 0.14);
+  transform: translateY(-1px);
+}
+
+.live-dot {
+  animation: live-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-dot,
+  .surface-hover {
+    animation: none;
+    transition: none;
+  }
+  .surface-hover:hover {
+    transform: none;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #3a2414;
+  border-radius: 999px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
