@@ -15,9 +15,9 @@ export default async function LoginPage({
     <main className="relative z-10 flex min-h-screen items-center justify-center px-4">
       <form action="/api/auth/login" method="post" className="surface w-full max-w-md rounded-3xl p-6 sm:p-8">
         <p className="text-xs tracking-[0.22em] text-[#FFA94D] uppercase">Private</p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight">Perpetual desk</h1>
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight">Desk</h1>
         <p className="mt-2 text-sm text-[#C9A88E]">
-          This book shows live markets and, when connected, a read-only futures account. Enter the desk password.
+          The account, executed trades, and the tape stay behind this password.
         </p>
         <label className="mt-6 block text-sm text-[#C9A88E]" htmlFor="password">
           Password

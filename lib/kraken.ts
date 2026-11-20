@@ -51,6 +51,7 @@ async function krakenGet(path: string) {
       Nonce: nonce,
     },
     cache: "no-store",
+    signal: AbortSignal.timeout(8_000),
   });
   const text = await response.text();
   let json: unknown = null;
@@ -150,7 +151,8 @@ export async function fetchKrakenAccount(): Promise<AccountPayload> {
     ]);
     return parseKrakenAccount(accounts, positions);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Kraken Futures request failed";
+    const timedOut = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
+    const message = timedOut ? "Kraken Futures did not answer in time." : error instanceof Error ? error.message : "Kraken Futures request failed";
     return emptyAccount({
       reason: "error",
       message: message.replace(/APIKey|Authent|secret/gi, "credentials"),

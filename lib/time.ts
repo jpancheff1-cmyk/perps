@@ -45,3 +45,15 @@ export function formatSofiaStamp(ms: number): string {
     hourCycle: "h23",
   }).format(new Date(ms));
 }
+
+export function formatSofiaWhen(ms: number): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: SOFIA,
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(new Date(ms));
+}

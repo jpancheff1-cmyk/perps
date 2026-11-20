@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { checkIngestAuth } from "@/lib/auth";
 import { applyIngest } from "@/lib/activity-store";
-import { startEngine } from "@/lib/engine";
+import { checkIngestAuth } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,6 +19,5 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
   const result = applyIngest(body);
   if (!result.ok) return NextResponse.json(result, { status: 400 });
-  startEngine();
   return NextResponse.json({ ok: true });
 }

@@ -34,7 +34,7 @@ yarn-error.log*
 .env*
 !.env.example
 
-# ingested briefs and backtests
+# activity.json and trades.json
 /data
 
 # vercel

@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Perpetual desk",
-  description: "Live USDT linear perpetuals for one private desk.",
+  title: "Desk",
+  description: "Read-only Kraken Futures account, executed trades, and the activity tape.",
   robots: { index: false, follow: false },
 };
 
