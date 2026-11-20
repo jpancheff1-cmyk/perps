@@ -4,9 +4,12 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { NextRequest } from "next/server";
+import { POST as postChat } from "../app/api/chat/route.ts";
 import { applyIngest, readFeed, resetStoreForTests } from "../lib/activity-store.ts";
-import { checkPassword, readSessionToken, signSession } from "../lib/auth.ts";
-import { activityMatches } from "../lib/feed.ts";
+import { SESSION_COOKIE, checkPassword, readSessionToken, signSession } from "../lib/auth.ts";
+import { resetChatGateForTests } from "../lib/chat.ts";
+import { activityMatches, waitingForReply } from "../lib/feed.ts";
 import { parseKrakenAccount, signKrakenRequest } from "../lib/kraken.ts";
 import { realizedSeries } from "../lib/pnl.ts";
 import { ACCOUNT_POLL_MS, CLIENT_POLL_MS } from "../lib/poll.ts";
@@ -188,6 +191,102 @@ test("realized series steps only closed trades and keeps close order", () => {
   );
 });
 
+test("chat route requires a session, stores without a relay, and forwards both headers", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "desk-chat-"));
+  const previous = {
+    DATA_DIR: process.env.DATA_DIR,
+    DASHBOARD_PASSWORD: process.env.DASHBOARD_PASSWORD,
+    SESSION_PASSWORD: process.env.SESSION_PASSWORD,
+    ASSISTANT_WEBHOOK_URL: process.env.ASSISTANT_WEBHOOK_URL,
+    ASSISTANT_WEBHOOK_KEY: process.env.ASSISTANT_WEBHOOK_KEY,
+  };
+  const originalFetch = globalThis.fetch;
+  process.env.DATA_DIR = dir;
+  process.env.DASHBOARD_PASSWORD = "desk-pass";
+  delete process.env.SESSION_PASSWORD;
+  delete process.env.ASSISTANT_WEBHOOK_URL;
+  delete process.env.ASSISTANT_WEBHOOK_KEY;
+  resetStoreForTests();
+  resetChatGateForTests();
+  try {
+    const anon = await postChat(chatRequest(null, "hello"));
+    assert.equal(anon.status, 401);
+
+    const token = signSession();
+    const missing = await postChat(chatRequest(token, "  Hello Paperboy  "));
+    assert.equal(missing.status, 200);
+    const missingJson = await missing.json();
+    assert.deepEqual(missingJson, { ok: true, forwarded: false });
+    const stored = readFeed().items.find((item) => item.body === "Hello Paperboy");
+    assert.ok(stored);
+    assert.equal(stored.source, "you");
+    assert.equal(stored.type, "chat");
+    assert.equal(stored.title, "You");
+    assert.equal(waitingForReply(readFeed().items, stored), true);
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    resetChatGateForTests();
+    const calls: { url: string; authorization: string | null; webhook: string | null; body: string }[] = [];
+    globalThis.fetch = async (input, init) => {
+      const headers = new Headers(init?.headers);
+      calls.push({
+        url: String(input),
+        authorization: headers.get("authorization"),
+        webhook: headers.get("x-webhook-key"),
+        body: String(init?.body ?? ""),
+      });
+      return new Response("ok", { status: 200 });
+    };
+    process.env.ASSISTANT_WEBHOOK_URL = "https://assistant.example/hook";
+    process.env.ASSISTANT_WEBHOOK_KEY = "secret-key";
+    const sent = await postChat(chatRequest(token, "Status?"));
+    assert.equal(sent.status, 200);
+    const sentJson = await sent.json();
+    assert.deepEqual(sentJson, { ok: true, forwarded: true });
+    assert.equal(JSON.stringify(sentJson).includes("secret-key"), false);
+    assert.equal(JSON.stringify(sentJson).includes("assistant.example"), false);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url, "https://assistant.example/hook");
+    assert.equal(calls[0].authorization, "Bearer secret-key");
+    assert.equal(calls[0].webhook, "secret-key");
+    const forwarded = JSON.parse(calls[0].body) as { message: string; ts: number; from: string };
+    assert.equal(forwarded.message, "Status?");
+    assert.equal(forwarded.from, "dashboard");
+    assert.equal(typeof forwarded.ts, "number");
+
+    const latest = readFeed().items.find((item) => item.body === "Status?");
+    assert.ok(latest);
+    assert.equal(waitingForReply(readFeed().items, latest), true);
+    assert.equal(waitingForReply(readFeed().items, stored), false);
+    const reply = applyIngest({ source: "paperboy", type: "reply", title: "Paperboy", body: "All quiet.", ts: latest.ts + 1 });
+    assert.equal(reply.ok, true);
+    assert.equal(waitingForReply(readFeed().items, latest), false);
+    assert.equal(activityMatches(latest, "chat"), true);
+    assert.equal(applyIngest({ source: "trading.exe", type: "reply", title: "No" }).ok, false);
+    assert.equal(applyIngest({ source: "you", type: "chat", title: "You", body: "From ingest" }).ok, true);
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    resetChatGateForTests();
+    globalThis.fetch = async () => new Response("no", { status: 503 });
+    const failed = await postChat(chatRequest(token, "Again"));
+    assert.equal(failed.status, 503);
+    const failedJson = await failed.json();
+    assert.equal(failedJson.ok, false);
+    assert.equal(failedJson.status, 503);
+    assert.equal(JSON.stringify(failedJson).includes("secret-key"), false);
+    assert.equal(readFeed().items.some((item) => item.body === "Again"), true);
+  } finally {
+    globalThis.fetch = originalFetch;
+    for (const [key, value] of Object.entries(previous)) {
+      if (value == null) delete process.env[key];
+      else process.env[key] = value;
+    }
+    resetStoreForTests();
+    resetChatGateForTests();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("bybit feed, indicators, and the ws client are gone", () => {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
   for (const relative of ["lib/bybit.ts", "lib/indicators.ts", "lib/engine.ts", "lib/coins.ts"]) {
@@ -207,6 +306,16 @@ test("bybit feed, indicators, and the ws client are gone", () => {
   }
   assert.deepEqual(hits, []);
 });
+
+function chatRequest(token: string | null, message: string) {
+  const headers = new Headers({ "content-type": "application/json" });
+  if (token) headers.set("cookie", `${SESSION_COOKIE}=${token}`);
+  return new NextRequest("http://127.0.0.1/api/chat", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ message }),
+  });
+}
 
 function trade(id: string, status: Trade["status"], pnlUsd: number | null, openedAt: number, closedAt: number | null): Trade {
   return {

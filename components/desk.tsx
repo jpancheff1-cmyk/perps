@@ -16,6 +16,24 @@ export function Desk() {
   const [error, setError] = useState(false);
   const [clock, setClock] = useState("");
 
+  async function refresh() {
+    try {
+      const loaded = await loadDesk();
+      if (loaded.status === 401) {
+        router.replace("/login");
+        return;
+      }
+      if (!loaded.payload) {
+        setError(true);
+        return;
+      }
+      setError(false);
+      setState(loaded.payload);
+    } catch {
+      setError(true);
+    }
+  }
+
   useEffect(() => {
     const tick = () => setClock(formatSofiaTime(Date.now()));
     tick();
@@ -27,20 +45,18 @@ export function Desk() {
     let cancelled = false;
     async function pull() {
       try {
-        const response = await fetch("/api/state", { cache: "no-store" });
+        const loaded = await loadDesk();
         if (cancelled) return;
-        if (response.status === 401) {
+        if (loaded.status === 401) {
           router.replace("/login");
           return;
         }
-        if (!response.ok) {
+        if (!loaded.payload) {
           setError(true);
           return;
         }
-        const payload = (await response.json()) as DeskPayload;
-        if (cancelled) return;
         setError(false);
-        setState(payload);
+        setState(loaded.payload);
       } catch {
         if (!cancelled) setError(true);
       }
@@ -80,11 +96,17 @@ export function Desk() {
         <div className="space-y-4 pb-8">
           {state ? <KrakenStrip account={state.account} /> : <Loading label="Loading the account…" />}
           {state ? <TradesPanel trades={state.trades} /> : <Loading label="Loading trades…" />}
-          {state ? <ActivityStream items={state.items} /> : <Loading label="Loading activity…" />}
+          {state ? <ActivityStream items={state.items} chatRelay={state.chatRelay} onRefresh={() => void refresh()} /> : <Loading label="Loading activity…" />}
         </div>
       </div>
     </div>
   );
+}
+
+async function loadDesk(): Promise<{ status: number; payload: DeskPayload | null }> {
+  const response = await fetch("/api/state", { cache: "no-store" });
+  if (!response.ok) return { status: response.status, payload: null };
+  return { status: response.status, payload: (await response.json()) as DeskPayload };
 }
 
 function Loading({ label }: { label: string }) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAccount } from "@/lib/account-poller";
 import { readFeed } from "@/lib/activity-store";
+import { chatRelayConfigured } from "@/lib/chat";
 import { requireUser } from "@/lib/guard";
 
 export const runtime = "nodejs";
@@ -12,7 +13,7 @@ export async function GET(request: NextRequest) {
   const account = await getAccount();
   const feed = readFeed();
   return NextResponse.json(
-    { account, items: feed.items, trades: feed.trades, serverTime: Date.now() },
+    { account, items: feed.items, trades: feed.trades, serverTime: Date.now(), chatRelay: chatRelayConfigured() },
     { headers: { "Cache-Control": "no-store" } },
   );
 }

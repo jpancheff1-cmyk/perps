@@ -1,7 +1,7 @@
 export type TradeSide = "long" | "short";
 export type TradeStatus = "open" | "closed";
-export type Source = "paperboy" | "trading.exe";
-export type ActivityType = "brief" | "backtest" | "status" | "order" | "fill" | "move" | "close";
+export type Source = "paperboy" | "trading.exe" | "you";
+export type ActivityType = "brief" | "backtest" | "status" | "order" | "fill" | "move" | "close" | "reply" | "chat";
 
 export type AccountPosition = {
   symbol: string;
@@ -73,4 +73,5 @@ export type DeskPayload = {
   items: ActivityItem[];
   trades: Trade[];
   serverTime: number;
+  chatRelay: boolean;
 };

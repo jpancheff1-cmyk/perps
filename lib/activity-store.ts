@@ -9,8 +9,9 @@ const ACTIVITY_LIMIT = 200;
 const TRADE_LIMIT = 500;
 
 const TYPES: Record<Source, ReadonlySet<ActivityType>> = {
-  paperboy: new Set(["brief", "backtest", "status"]),
+  paperboy: new Set(["brief", "backtest", "status", "reply", "chat"]),
   "trading.exe": new Set(["order", "fill", "move", "close"]),
+  you: new Set(["chat", "reply"]),
 };
 
 type Store = { items: ActivityItem[]; trades: Trade[] };
@@ -53,11 +54,21 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 }
 
 function isSource(value: unknown): value is Source {
-  return value === "paperboy" || value === "trading.exe";
+  return value === "paperboy" || value === "trading.exe" || value === "you";
 }
 
 function isType(value: unknown): value is ActivityType {
-  return value === "brief" || value === "backtest" || value === "status" || value === "order" || value === "fill" || value === "move" || value === "close";
+  return (
+    value === "brief" ||
+    value === "backtest" ||
+    value === "status" ||
+    value === "order" ||
+    value === "fill" ||
+    value === "move" ||
+    value === "close" ||
+    value === "reply" ||
+    value === "chat"
+  );
 }
 
 function isSide(value: unknown): value is TradeSide {
@@ -307,15 +318,15 @@ function upsertTrade(raw: unknown, type: ActivityType, ts: number, trades: Trade
 export function applyIngest(body: unknown, now = Date.now()): { ok: true } | { ok: false; error: string } {
   const input = asRecord(body);
   if (!input) return { ok: false, error: "Body must be a JSON object." };
-  if (!isSource(input.source)) return { ok: false, error: "Source must be paperboy or trading.exe." };
+  if (!isSource(input.source)) return { ok: false, error: "Source must be paperboy, trading.exe, or you." };
   if (!isType(input.type) || !TYPES[input.source].has(input.type)) {
-    return {
-      ok: false,
-      error:
-        input.source === "paperboy"
-          ? "Paperboy accepts brief, backtest, or status."
-          : "Trading.exe accepts order, fill, move, or close.",
-    };
+    const error =
+      input.source === "paperboy"
+        ? "Paperboy accepts brief, backtest, status, reply, or chat."
+        : input.source === "you"
+          ? "You accepts chat or reply."
+          : "Trading.exe accepts order, fill, move, or close.";
+    return { ok: false, error };
   }
   const title = text(input.title, 160);
   if (!title.ok) return { ok: false, error: "Title must be a string." };

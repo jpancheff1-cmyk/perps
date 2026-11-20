@@ -35,6 +35,8 @@ npm start
 | `INGEST_TOKEN` | yes, for ingest | Bearer token for `POST /api/ingest`. |
 | `KRAKEN_FUTURES_API_KEY` | no | Read-only Kraken Futures key. Blank shows **not connected**. |
 | `KRAKEN_FUTURES_API_SECRET` | no | Read-only Kraken Futures secret. Never sent to the browser and never logged. |
+| `ASSISTANT_WEBHOOK_URL` | no | Where the server forwards a chat message. Both this and the key must be set. |
+| `ASSISTANT_WEBHOOK_KEY` | no | Sent only on that server-side request, as `Authorization: Bearer` and `X-Webhook-Key`. Never sent to the browser. |
 
 The Kraken key is read-only. The server calls only `GET /api/v3/accounts` and `GET /api/v3/openpositions`. It never places, edits, or cancels orders and never moves funds.
 
@@ -42,7 +44,7 @@ The Kraken key is read-only. The server calls only `GET /api/v3/accounts` and `G
 
 1. Kraken Futures: portfolio value, USDC, available margin, unrealized PnL, and open positions. The server refreshes this about every 30 seconds. The browser reads the cache from `GET /api/state` about every 5 seconds.
 2. Executed trades: a cumulative realized-PnL step line and a table. Times are Europe/Sofia. An empty book says `No executed trades yet`.
-3. Activity: posts from Paperboy (briefs, backtests, status) and Trading.exe (orders, fills, stop or target moves, closes). Filter chips: All, Paperboy, Trading.exe, Trades.
+3. Activity: posts from Paperboy (briefs, backtests, status, replies) and Trading.exe (orders, fills, stop or target moves, closes), plus a chat box. Filter chips: All, Paperboy, Trading.exe, Trades, Chat.
 
 ## Ingest
 
@@ -52,8 +54,8 @@ The Kraken key is read-only. The server calls only `GET /api/v3/accounts` and `G
 
 ```json
 {
-  "source": "paperboy | trading.exe",
-  "type": "brief | backtest | status | order | fill | move | close",
+  "source": "paperboy | trading.exe | you",
+  "type": "brief | backtest | status | reply | chat | order | fill | move | close",
   "title": "required",
   "body": "optional",
   "ts": 1700000000000,
@@ -76,8 +78,9 @@ The Kraken key is read-only. The server calls only `GET /api/v3/accounts` and `G
 
 | Source | Types |
 | --- | --- |
-| `paperboy` | `brief`, `backtest`, `status` |
+| `paperboy` | `brief`, `backtest`, `status`, `reply`, `chat` |
 | `trading.exe` | `order`, `fill`, `move`, `close` |
+| `you` | `chat`, `reply` |
 
 `trade` is optional. Trading.exe sends it with orders, fills, moves, and closes. Posts land in `$DATA_DIR/activity.json`. The trade book lands in `$DATA_DIR/trades.json`.
 
@@ -120,6 +123,33 @@ curl -sS -X POST http://127.0.0.1:3847/api/ingest \
 
 A successful post returns `{ "ok": true }`. A rejected post returns `{ "ok": false, "error": "..." }`.
 
+Paperboy replies on this same route:
+
+```bash
+curl -sS -X POST http://127.0.0.1:3847/api/ingest \
+  -H "Authorization: Bearer $INGEST_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"source":"paperboy","type":"reply","title":"Paperboy","body":"On it."}'
+```
+
+## Chat
+
+The box at the bottom of the tape posts to `POST /api/chat`. It uses the same session cookie as the page. A visitor who is not logged in gets `401`. The JSON body is `{ "message": "..." }`. The message is trimmed and must be 1 to 2000 characters. About one message every 3 seconds is accepted.
+
+The desk stores it as an activity item `{ "source": "you", "type": "chat", "title": "You", "body": "<message>" }`, then forwards it from the server:
+
+```bash
+curl -sS -X POST "$ASSISTANT_WEBHOOK_URL" \
+  -H "Authorization: Bearer $ASSISTANT_WEBHOOK_KEY" \
+  -H "X-Webhook-Key: $ASSISTANT_WEBHOOK_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"message":"What is the book doing?","ts":1700000000000,"from":"dashboard"}'
+```
+
+The browser never receives `ASSISTANT_WEBHOOK_URL` or `ASSISTANT_WEBHOOK_KEY`. If either is unset, the message is still stored and `/api/chat` returns `{ "ok": true, "forwarded": false }`. The page says `Chat relay not configured`. If the forward fails, the response uses that request's status and a short error. The message stays on the tape.
+
+The last message from you shows `sent, waiting for reply…` until a Paperboy `reply` with a later timestamp arrives. Replies often take one to three minutes. The page keeps polling about every 5 seconds. The Chat chip shows this conversation.
+
 ## Deploy
 
 Railway auto-deploys this repo from `main`. One service, Node 20 or newer.
@@ -128,6 +158,7 @@ Railway auto-deploys this repo from `main`. One service, Node 20 or newer.
 - Start command: `npm start`
 - Set `DASHBOARD_PASSWORD` and `INGEST_TOKEN`.
 - Add the Kraken key and secret only if the account panel should connect.
+- Set `ASSISTANT_WEBHOOK_URL` and `ASSISTANT_WEBHOOK_KEY` to relay chat. Leave them blank to keep messages on the desk only.
 - Mount a volume at `/data` and set `DATA_DIR=/data`.
 - Keep a single replica. The process holds the account cache, and two replicas would overwrite the JSON files.
 
