@@ -99,7 +99,7 @@ export function Desk() {
           </div>
         </header>
         {error && <p className="mb-3 text-sm text-[#f0abfc]">The desk could not refresh. Trying again.</p>}
-        <div className="space-y-4 pb-8">
+        <div className="space-y-4 pb-44 md:pb-8">
           {state ? <ForceStop armed={state.forceStopArmed} onDone={() => void refresh()} /> : null}
           {state ? <KrakenStrip account={state.account} spot={state.spot} earn={state.earn} spotOrders={state.spotOrders} /> : <Loading label="Loading the account…" />}
           {state ? <PositionBoard positions={state.account.positions} charts={state.charts} /> : null}

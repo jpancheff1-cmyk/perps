@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { activityMatches, waitingForReply, type ActivityFilter } from "@/lib/feed";
@@ -70,6 +70,7 @@ export function ActivityStream({ items, chatRelay, onRefresh }: { items: Activit
   }
 
   return (
+    <>
     <section className="surface p-4 sm:p-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
@@ -127,30 +128,115 @@ export function ActivityStream({ items, chatRelay, onRefresh }: { items: Activit
           })}
         </div>
       )}
-      <div className="sticky bottom-0 mt-4 bg-[#141a2e]/95 pt-3">
-      <form
-        className="flex gap-2"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void send();
-        }}
-      >
-        <input
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          maxLength={2000}
-          placeholder="Message Paperboy"
-          aria-label="Message Paperboy"
-          className="h-9 min-w-0 flex-1 rounded-full border border-[#2e3a66] bg-[#141a2e] px-3 text-sm text-[#f8f5ff] outline-none placeholder:text-[#b7b3d9]/70 focus:border-[#a855f7]"
-        />
-        <Button type="submit" size="sm" disabled={sending || !draft.trim()}>
-          Send
-        </Button>
-      </form>
-      {!chatRelay && <p className="mt-2 text-sm text-[#b7b3d9]">Chat relay not configured</p>}
-      {sendError && <p className="mt-2 text-sm text-[#f0abfc]">{sendError}</p>}
-      </div>
     </section>
+    <ChatDock
+      items={items}
+      chatRelay={chatRelay}
+      draft={draft}
+      sending={sending}
+      sendError={sendError}
+      onDraft={setDraft}
+      onSend={() => void send()}
+    />
+    </>
+  );
+}
+
+function ChatDock({
+  items,
+  chatRelay,
+  draft,
+  sending,
+  sendError,
+  onDraft,
+  onSend,
+}: {
+  items: ActivityItem[];
+  chatRelay: boolean;
+  draft: string;
+  sending: boolean;
+  sendError: string | null;
+  onDraft: (value: string) => void;
+  onSend: () => void;
+}) {
+  const [open, setOpen] = useState(() => typeof window === "undefined" || window.localStorage.getItem("mission-chat-open") !== "0");
+  const scroller = useRef<HTMLDivElement>(null);
+  const thread = items.filter((item) => activityMatches(item, "chat")).slice(0, 8).reverse();
+  useEffect(() => {
+    const node = scroller.current;
+    if (node) node.scrollTop = node.scrollHeight;
+  }, [thread.length, items]);
+
+  function setDock(next: boolean) {
+    setOpen(next);
+    window.localStorage.setItem("mission-chat-open", next ? "1" : "0");
+  }
+
+  return (
+    <aside
+      className={`fixed z-40 ${
+        open
+          ? "inset-x-0 bottom-0 md:inset-x-auto md:right-4 md:bottom-4 md:w-[380px]"
+          : "right-3 bottom-3 md:right-4 md:bottom-4"
+      }`}
+    >
+      {open ? (
+        <div className="surface max-h-[70vh] border-[#a855f7]/40 p-3 shadow-[0_16px_50px_rgba(8,10,30,0.55)] md:max-h-[520px]">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold tracking-[0.14em] text-[#c4b5fd] uppercase">Paperboy</h2>
+            <button type="button" onClick={() => setDock(false)} className="rounded-full border border-[#2e3a66] px-2 py-0.5 text-xs text-[#b7b3d9]" aria-expanded={true}>
+              Hide
+            </button>
+          </div>
+          <div ref={scroller} className="max-h-64 space-y-2 overflow-y-auto pr-1">
+            {thread.length === 0 ? (
+              <p className="text-sm text-[#b7b3d9]">No messages yet.</p>
+            ) : (
+              thread.map((item) => {
+                const mine = item.source === "you";
+                return (
+                  <article key={item.id} className={`rounded-2xl border border-[#2e3a66] px-3 py-2 ${mine ? "ml-auto w-fit max-w-[90%]" : ""}`}>
+                    <div className="flex items-baseline justify-between gap-2 text-xs">
+                      <span className="tracking-[0.14em] text-[#c4b5fd] uppercase">{sourceLabel(item.source)}</span>
+                      <time className="text-[#b7b3d9]" dateTime={new Date(item.ts).toISOString()}>
+                        {formatSofiaWhen(item.ts)}
+                      </time>
+                    </div>
+                    {item.body && <p className="mt-1 text-sm whitespace-pre-wrap text-[#ddd6fe]">{item.body}</p>}
+                    {waitingForReply(items, item) && <p className="mt-1 text-xs text-[#b7b3d9]">sent, waiting for reply…</p>}
+                  </article>
+                );
+              })
+            )}
+          </div>
+          <form
+            className="mt-3 flex gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onSend();
+            }}
+          >
+            <input
+              value={draft}
+              onChange={(event) => onDraft(event.target.value)}
+              maxLength={2000}
+              placeholder="Message Paperboy"
+              aria-label="Message Paperboy"
+              className="h-9 min-w-0 flex-1 rounded-full border border-[#2e3a66] bg-[#141a2e] px-3 text-sm text-[#f8f5ff] outline-none placeholder:text-[#b7b3d9]/70 focus:border-[#a855f7]"
+            />
+            <Button type="submit" size="sm" disabled={sending || !draft.trim()}>
+              Send
+            </Button>
+          </form>
+          {!chatRelay && <p className="mt-2 text-sm text-[#b7b3d9]">Chat relay not configured</p>}
+          {sendError && <p className="mt-2 text-sm text-[#f0abfc]">{sendError}</p>}
+        </div>
+      ) : (
+        <button type="button" onClick={() => setDock(true)} className="rounded-full bg-gradient-to-r from-[#a855f7] to-[#ec4899] px-4 py-2 text-sm font-medium text-white" aria-expanded={false}>
+          Paperboy
+        </button>
+      )}
+    </aside>
   );
 }
 
