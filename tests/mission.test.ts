@@ -29,6 +29,7 @@ test("BalanceEx permission denial falls back to Balance and Earn stays separate"
   const logged: string[] = [];
   const calls: { url: string; body: string; type: string | null; key: string | null }[] = [];
   process.env.DATA_DIR = dir;
+  fs.writeFileSync(path.join(dir, "kraken-spot-nonce"), "42");
   process.env.KRAKEN_SPOT_API_KEY = " spot-key \n";
   process.env.KRAKEN_SPOT_API_SECRET = " c3BvdC1zZWNyZXQ= \n";
   globalThis.fetch = async (input, init) => {
@@ -57,6 +58,9 @@ test("BalanceEx permission denial falls back to Balance and Earn stays separate"
     const earned = calls.find((call) => call.url.endsWith("/0/private/Earn/Allocations"));
     assert.equal(extended?.type, "application/x-www-form-urlencoded");
     assert.match(extended?.body ?? "", /^nonce=\d+$/);
+    const sentNonce = BigInt((extended?.body.match(/^nonce=(\d+)$/) ?? [])[1] ?? "0");
+    assert.ok(sentNonce >= BigInt(Date.now() - 60_000) * 1000000n);
+    assert.ok(sentNonce > 42n);
     assert.equal(plain?.type, "application/x-www-form-urlencoded");
     assert.equal(earned?.type, "application/json");
     assert.match(earned?.body ?? "", /"converted_asset":"USD"/);

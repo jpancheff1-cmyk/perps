@@ -6,7 +6,11 @@ import type { EarnPayload, SpotAsset, SpotPayload } from "./types";
 
 const ALLOWED = new Set(["/0/private/Balance", "/0/private/BalanceEx", "/0/private/Earn/Allocations"]);
 
-let nonce = 0;
+const ZERO = BigInt(0);
+const ONE = BigInt(1);
+const NANOS_PER_MS = BigInt(1000000);
+let counter = ZERO;
+let memoryNonce = ZERO;
 let queue: Promise<unknown> = Promise.resolve();
 
 function trimmed(name: string) {
@@ -19,24 +23,26 @@ function nonceFile() {
 }
 
 function nextNonce() {
-  const clock = Date.now() * 1000;
-  let stored = 0;
+  counter += ONE;
+  const clock = BigInt(Date.now()) * NANOS_PER_MS + counter;
+  let stored = ZERO;
   try {
-    stored = Number(fs.readFileSync(/* turbopackIgnore: true */ nonceFile(), "utf8"));
+    const raw = fs.readFileSync(/* turbopackIgnore: true */ nonceFile(), "utf8").trim();
+    if (/^\d+$/.test(raw)) stored = BigInt(raw);
   } catch {
-    stored = 0;
+    stored = ZERO;
   }
-  if (!Number.isFinite(stored)) stored = 0;
-  const value = Math.max(clock, stored + 1, nonce + 1);
-  nonce = value;
+  const remembered = stored > memoryNonce ? stored : memoryNonce;
+  const value = clock > remembered ? clock : remembered + ONE;
+  memoryNonce = value;
   try {
     const file = nonceFile();
     fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, String(value));
+    fs.writeFileSync(file, value.toString());
   } catch {
     /* the in-memory counter still moves forward */
   }
-  return value;
+  return value.toString();
 }
 
 function enqueue<T>(task: () => Promise<T>): Promise<T> {
@@ -80,14 +86,14 @@ function emptyEarn(partial: Partial<EarnPayload>): EarnPayload {
 
 type SpotCall = { ok: true; json: unknown } | { ok: false; detail: string };
 
-function formBody(nonceValue: number, extra: Record<string, string>) {
+function formBody(nonceValue: string, extra: Record<string, string>) {
   const params = new URLSearchParams();
-  params.set("nonce", String(nonceValue));
+  params.set("nonce", nonceValue);
   for (const [key, value] of Object.entries(extra)) params.set(key, value);
   return params.toString();
 }
 
-async function privateCall(uriPath: string, nonceValue: number, body: string, contentType: "application/x-www-form-urlencoded" | "application/json"): Promise<SpotCall> {
+async function privateCall(uriPath: string, nonceValue: string, body: string, contentType: "application/x-www-form-urlencoded" | "application/json"): Promise<SpotCall> {
   if (!ALLOWED.has(uriPath)) throw new Error("That Kraken spot endpoint is not used by this desk.");
   const key = trimmed("KRAKEN_SPOT_API_KEY");
   const secret = trimmed("KRAKEN_SPOT_API_SECRET");
@@ -98,7 +104,7 @@ async function privateCall(uriPath: string, nonceValue: number, body: string, co
       headers: {
         "Content-Type": contentType,
         "API-Key": key,
-        "API-Sign": signSpotRequest(secret, uriPath, String(nonceValue), body),
+        "API-Sign": signSpotRequest(secret, uriPath, nonceValue, body),
       },
       body,
       cache: "no-store",
@@ -137,7 +143,7 @@ function postForm(uriPath: string, extra: Record<string, string> = {}) {
 function postEarn() {
   return enqueue(() => {
     const nonceValue = nextNonce();
-    const body = JSON.stringify({ nonce: nonceValue, converted_asset: "USD", hide_zero_allocations: true });
+    const body = `{"nonce":${nonceValue},"converted_asset":"USD","hide_zero_allocations":true}`;
     return privateCall("/0/private/Earn/Allocations", nonceValue, body, "application/json");
   });
 }
