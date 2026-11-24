@@ -1,8 +1,8 @@
 import crypto from "crypto";
-import type { AccountPayload, AccountPosition } from "./types";
+import type { AccountPayload, AccountPosition, FuturesOrder } from "./types";
 import { finite } from "./format";
 
-const ALLOWED_PATHS = new Set(["/api/v3/accounts", "/api/v3/openpositions"]);
+const ALLOWED_PATHS = new Set(["/api/v3/accounts", "/api/v3/openpositions", "/api/v3/openorders"]);
 
 export function krakenConfigured() {
   return Boolean(process.env.KRAKEN_FUTURES_API_KEY && process.env.KRAKEN_FUTURES_API_SECRET);
@@ -22,6 +22,7 @@ function emptyAccount(partial: Partial<AccountPayload>): AccountPayload {
     availableMargin: null,
     unrealizedPnl: null,
     positions: [],
+    orders: [],
     updatedAt: null,
     ...partial,
   };
@@ -80,6 +81,30 @@ function readPosition(position: Record<string, unknown>): AccountPosition {
       finite(position.liquidationPrice) ??
       finite(position.liquidation_price),
     markPrice: finite(position.markPrice) ?? finite(position.mark_price),
+    openedAt: eventMillis(position.fillTime ?? position.receivedTime ?? position.openTime),
+  };
+}
+
+function eventMillis(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value < 1e12 ? value * 1000 : value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Date.parse(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+function readOrder(row: Record<string, unknown>): FuturesOrder {
+  return {
+    id: String(row.order_id ?? row.orderId ?? row.id ?? ""),
+    symbol: String(row.symbol ?? ""),
+    side: String(row.side ?? "").toLowerCase(),
+    orderType: String(row.orderType ?? row.order_type ?? "").toLowerCase(),
+    limitPrice: finite(row.limitPrice) ?? finite(row.limit_price),
+    stopPrice: finite(row.stopPrice) ?? finite(row.stop_price),
+    size: finite(row.unfilledSize) ?? finite(row.size) ?? finite(row.quantity),
+    reduceOnly: row.reduceOnly === true || row.reduce_only === true,
+    receivedTime: eventMillis(row.receivedTime ?? row.lastUpdateTime),
   };
 }
 
@@ -87,7 +112,7 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 }
 
-export function parseKrakenAccount(accountsJson: unknown, positionsJson: unknown, now = Date.now()): AccountPayload {
+export function parseKrakenAccount(accountsJson: unknown, positionsJson: unknown, now = Date.now(), ordersJson?: unknown): AccountPayload {
   const root = asRecord(accountsJson);
   const accounts = asRecord(root?.accounts) ?? {};
   let portfolioValue: number | null = null;
@@ -147,8 +172,13 @@ export function parseKrakenAccount(accountsJson: unknown, positionsJson: unknown
       if (current.markPrice == null) current.markPrice = extra.markPrice;
       if (current.leverage == null) current.leverage = extra.leverage;
       if (current.unrealizedPnl == null) current.unrealizedPnl = extra.unrealizedPnl;
+      if (current.openedAt == null) current.openedAt = extra.openedAt;
     }
   }
+
+  const ordersRoot = asRecord(ordersJson);
+  const orderList = Array.isArray(ordersRoot?.openOrders) ? ordersRoot.openOrders : Array.isArray(ordersJson) ? ordersJson : [];
+  const orders = orderList.map((row) => readOrder(asRecord(row) ?? {})).filter((order) => order.symbol);
 
   const usdcSource = cashUsdc != null ? "cash" : flexUsdc != null ? "flex" : null;
   return {
@@ -159,6 +189,7 @@ export function parseKrakenAccount(accountsJson: unknown, positionsJson: unknown
     availableMargin,
     unrealizedPnl,
     positions,
+    orders,
     updatedAt: now,
   };
 }
@@ -166,11 +197,12 @@ export function parseKrakenAccount(accountsJson: unknown, positionsJson: unknown
 export async function fetchKrakenAccount(): Promise<AccountPayload> {
   if (!krakenConfigured()) return notConnectedAccount();
   try {
-    const [accounts, positions] = await Promise.all([
+    const [accounts, positions, orders] = await Promise.all([
       krakenGet("/api/v3/accounts"),
       krakenGet("/api/v3/openpositions"),
+      krakenGet("/api/v3/openorders").catch(() => null),
     ]);
-    return parseKrakenAccount(accounts, positions);
+    return parseKrakenAccount(accounts, positions, Date.now(), orders);
   } catch (error) {
     const timedOut = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
     const message = timedOut ? "Kraken Futures did not answer in time." : error instanceof Error ? error.message : "Kraken Futures request failed";

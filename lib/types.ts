@@ -26,6 +26,19 @@ export type AccountPosition = {
   leverage: number | null;
   liquidationPrice: number | null;
   markPrice: number | null;
+  openedAt: number | null;
+};
+
+export type FuturesOrder = {
+  id: string;
+  symbol: string;
+  side: string;
+  orderType: string;
+  limitPrice: number | null;
+  stopPrice: number | null;
+  size: number | null;
+  reduceOnly: boolean;
+  receivedTime: number | null;
 };
 
 export type AccountPayload = {
@@ -38,6 +51,7 @@ export type AccountPayload = {
   availableMargin: number | null;
   unrealizedPnl: number | null;
   positions: AccountPosition[];
+  orders: FuturesOrder[];
   updatedAt: number | null;
 };
 

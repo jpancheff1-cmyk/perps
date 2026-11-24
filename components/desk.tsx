@@ -8,7 +8,7 @@ import { ForceStop } from "@/components/force-stop";
 import { KrakenStrip } from "@/components/kraken-strip";
 import { OneUp } from "@/components/one-up";
 import { PositionBoard } from "@/components/position-board";
-import { TradesPanel } from "@/components/trades-panel";
+import { OpenFuturesTrades } from "@/components/trades-panel";
 import { Button } from "@/components/ui/button";
 import { CLIENT_POLL_MS } from "@/lib/poll";
 import { formatSofiaTime } from "@/lib/time";
@@ -103,7 +103,7 @@ export function Desk() {
           {state ? <ForceStop armed={state.forceStopArmed} onDone={() => void refresh()} /> : null}
           {state ? <KrakenStrip account={state.account} spot={state.spot} earn={state.earn} spotOrders={state.spotOrders} /> : <Loading label="Loading the account…" />}
           {state ? <PositionBoard positions={state.account.positions} charts={state.charts} /> : null}
-          {state ? <TradesPanel trades={state.trades} /> : <Loading label="Loading trades…" />}
+          {state ? <OpenFuturesTrades account={state.account} /> : <Loading label="Loading trades…" />}
           {state ? <ActivityStream items={state.items} chatRelay={state.chatRelay} onRefresh={() => void refresh()} /> : <Loading label="Loading activity…" />}
         </div>
       </div>

@@ -43,14 +43,14 @@ npm start
 | `ASSISTANT_WEBHOOK_URL` | no | Where the server forwards a chat message. Both this and the key must be set. |
 | `ASSISTANT_WEBHOOK_KEY` | no | Sent only on that server-side request, as `Authorization: Bearer` and `X-Webhook-Key`. Never sent to the browser. |
 
-The futures read key calls only `GET /api/v3/accounts` and `GET /api/v3/openpositions`. The spot key calls only `POST /0/private/Balance`, `POST /0/private/BalanceEx`, `POST /0/private/OpenOrders`, and `POST /0/private/Earn/Allocations` with `converted_asset` USD, plus the public ticker for USD value. Those keys never place, edit, or cancel orders and never move funds.
+The futures read key calls only `GET /api/v3/accounts`, `GET /api/v3/openpositions`, and `GET /api/v3/openorders`. The spot key calls only `POST /0/private/Balance`, `POST /0/private/BalanceEx`, `POST /0/private/OpenOrders`, and `POST /0/private/Earn/Allocations` with `converted_asset` USD, plus the public ticker for USD value. Those keys never place, edit, or cancel orders and never move funds.
 
 Force stop is separate. It uses `KRAKEN_FUTURES_TRADE_API_KEY` and only `POST /api/v3/cancelallorders` plus reduce-only `POST /api/v3/sendorder`. It does not withdraw or transfer.
 
 ## What the page shows
 
 1. Kraken Pro: futures portfolio, USDC, free margin, unrealized PnL, a futures/spot/Earn donut, and spot balances when the spot key is set. Open positions, when any exist, get a 5-minute chart, RSI, and liquidation levels. The server refreshes this about every 30 seconds. The browser reads the cache from `GET /api/state` about every 5 seconds.
-2. Executed trades: a cumulative realized-PnL step line and a table. Times are Europe/Sofia. An empty book says `No executed trades yet`.
+2. Open futures trades: live positions and pending orders, with stops and targets from open orders. An empty book says `No open futures trades`. Ingested trade history is still stored for the tape and the 1UP.
 3. Activity: posts from Paperboy (briefs, backtests, status, replies) and Trading.exe (orders, fills, stop or target moves, closes), plus a chat box. Filter chips: All, Paperboy, Trading.exe, Trades, Chat.
 
 ## Ingest

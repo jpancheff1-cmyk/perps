@@ -8,6 +8,7 @@ import { POST as forceStop } from "../app/api/force-stop/route.ts";
 import { applyIngest, readFeed, resetStoreForTests } from "../lib/activity-store.ts";
 import { SESSION_COOKIE, signSession } from "../lib/auth.ts";
 import { readLevels } from "../lib/levels.ts";
+import { buildOpenFutures } from "../lib/futures-book.ts";
 import { fetchKrakenEarn, fetchKrakenOpenOrders, fetchKrakenSpot, parseEarnAllocations, parseOpenOrders, parseSpotBalances, signSpotRequest } from "../lib/kraken-spot.ts";
 
 test("spot signature matches Kraken's documented AddOrder vector", () => {
@@ -139,6 +140,38 @@ test("open spot orders parse notional and permission denial", async () => {
     }
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("open futures rows link reduce-only stop and target orders", () => {
+  const book = buildOpenFutures(
+    [
+      {
+        symbol: "PF_XBTUSD",
+        side: "long",
+        size: 0.1,
+        entryPrice: 60000,
+        markPrice: 61000,
+        unrealizedPnl: 100,
+        leverage: 5,
+        liquidationPrice: 50000,
+        openedAt: 1700000000000,
+      },
+    ],
+    [
+      { id: "s", symbol: "PF_XBTUSD", side: "sell", orderType: "stp", limitPrice: null, stopPrice: 58000, size: 0.1, reduceOnly: true, receivedTime: null },
+      { id: "t", symbol: "PF_XBTUSD", side: "sell", orderType: "take_profit", limitPrice: 65000, stopPrice: 65000, size: 0.1, reduceOnly: true, receivedTime: null },
+      { id: "e", symbol: "PF_ETHUSD", side: "buy", orderType: "lmt", limitPrice: 3000, stopPrice: null, size: 1, reduceOnly: false, receivedTime: 1700001000000 },
+    ],
+  );
+  assert.equal(book.count, 1);
+  assert.equal(book.rows[0].stop, 58000);
+  assert.equal(book.rows[0].target, 65000);
+  assert.equal(book.rows[0].pnlPct, ((61000 - 60000) / 60000) * 5 * 100);
+  assert.equal(book.totalPnl, 100);
+  assert.equal(book.totalMargin, (0.1 * 61000) / 5);
+  assert.equal(book.rows[1].pending, true);
+  assert.equal(book.rows[1].symbol, "PF_ETHUSD");
+  assert.equal(buildOpenFutures([], []).rows.length, 0);
 });
 
 test("spot balances prefer BalanceEx and price them from the ticker", () => {

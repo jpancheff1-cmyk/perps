@@ -55,7 +55,7 @@ test("Kraken signature matches the published HMAC construction and stays read-on
     assert.equal(source.toLowerCase().includes(forbidden), false);
   }
   const paths = [...new Set(source.match(/\/api\/v3\/[a-z]+/g) ?? [])].sort();
-  assert.deepEqual(paths, ["/api/v3/accounts", "/api/v3/openpositions"]);
+  assert.deepEqual(paths, ["/api/v3/accounts", "/api/v3/openorders", "/api/v3/openpositions"]);
 });
 
 test("Kraken account parser reads flex value, cash USDC, and positions", () => {
