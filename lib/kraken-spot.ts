@@ -2,9 +2,9 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import { finite } from "./format";
-import type { EarnPayload, SpotAsset, SpotPayload } from "./types";
+import type { EarnPayload, SpotAsset, SpotOrder, SpotOrdersPayload, SpotPayload } from "./types";
 
-const ALLOWED = new Set(["/0/private/Balance", "/0/private/BalanceEx", "/0/private/Earn/Allocations"]);
+const ALLOWED = new Set(["/0/private/Balance", "/0/private/BalanceEx", "/0/private/OpenOrders", "/0/private/Earn/Allocations"]);
 
 const ZERO = BigInt(0);
 const ONE = BigInt(1);
@@ -265,6 +265,57 @@ export async function fetchKrakenSpot(): Promise<SpotPayload> {
   const names = [...collect(balance, balanceEx).keys()];
   const ticker = await tickersFor(names);
   return { connected: true, ...parseSpotBalances(balance, balanceEx, ticker), updatedAt: Date.now() };
+}
+
+function quoteIsUsd(pair: string) {
+  const name = pair.toUpperCase();
+  return /(?:ZUSD|USDT|USDC|DAI|USD)$/.test(name);
+}
+
+export function parseOpenOrders(json: unknown): SpotOrder[] {
+  const open = asRecord(asRecord(asRecord(json)?.result)?.open);
+  if (!open) return [];
+  const orders: SpotOrder[] = [];
+  for (const [id, value] of Object.entries(open)) {
+    const row = asRecord(value);
+    if (!row) continue;
+    const descr = asRecord(row.descr) ?? {};
+    const price = finite(descr.price);
+    const price2 = finite(descr.price2);
+    const volume = finite(row.vol);
+    const filled = finite(row.vol_exec);
+    const limit = price != null && price > 0 ? price : price2 != null && price2 > 0 ? price2 : null;
+    const pair = String(descr.pair ?? "");
+    orders.push({
+      id,
+      pair,
+      side: String(descr.type ?? "").toLowerCase(),
+      type: String(descr.ordertype ?? ""),
+      price,
+      price2,
+      volume,
+      filled,
+      status: String(row.status ?? ""),
+      opentm: finite(row.opentm),
+      usdValue: limit != null && volume != null && quoteIsUsd(pair) ? limit * volume : null,
+    });
+  }
+  orders.sort((a, b) => (b.opentm ?? 0) - (a.opentm ?? 0) || a.id.localeCompare(b.id));
+  return orders;
+}
+
+function emptyOrders(partial: Partial<SpotOrdersPayload>): SpotOrdersPayload {
+  return { connected: false, orders: [], ...partial };
+}
+
+export async function fetchKrakenOpenOrders(): Promise<SpotOrdersPayload> {
+  if (!spotConfigured()) return emptyOrders({ reason: "not_configured", message: "Connect spot key" });
+  const opened = await postForm("/0/private/OpenOrders");
+  if (!opened.ok) {
+    const message = permissionDenied(opened.detail) ? "needs Query Open Orders & Trades permission" : opened.detail;
+    return emptyOrders({ reason: "error", message, updatedAt: Date.now() });
+  }
+  return { connected: true, orders: parseOpenOrders(opened.json), updatedAt: Date.now() };
 }
 
 export async function fetchKrakenEarn(): Promise<EarnPayload> {

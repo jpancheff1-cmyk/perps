@@ -1,13 +1,14 @@
 import { buildCharts } from "./candles";
 import { fetchKrakenAccount, notConnectedAccount } from "./kraken";
-import { fetchKrakenEarn, fetchKrakenSpot } from "./kraken-spot";
+import { fetchKrakenEarn, fetchKrakenOpenOrders, fetchKrakenSpot } from "./kraken-spot";
 import { ACCOUNT_POLL_MS } from "./poll";
-import type { AccountPayload, EarnPayload, PositionChart, SpotPayload } from "./types";
+import type { AccountPayload, EarnPayload, PositionChart, SpotOrdersPayload, SpotPayload } from "./types";
 
 export type DeskSnapshot = {
   account: AccountPayload;
   spot: SpotPayload;
   earn: EarnPayload;
+  spotOrders: SpotOrdersPayload;
   charts: PositionChart[];
 };
 
@@ -20,6 +21,7 @@ type PollState = {
 
 const emptySpot = (): SpotPayload => ({ connected: false, reason: "not_configured", message: "Connect spot key", assets: [], totalUsd: null, updatedAt: null });
 const emptyEarn = (): EarnPayload => ({ connected: false, reason: "not_configured", message: "Connect spot key", totalUsd: null, rewardedUsd: null, updatedAt: null });
+const emptyOrders = (): SpotOrdersPayload => ({ connected: false, reason: "not_configured", message: "Connect spot key", orders: [] });
 
 const globalStore = globalThis as unknown as { __deskAccountPoll?: PollState };
 
@@ -27,7 +29,7 @@ function state(): PollState {
   if (!globalStore.__deskAccountPoll) {
     globalStore.__deskAccountPoll = {
       timer: null,
-      cache: { account: notConnectedAccount(), spot: emptySpot(), earn: emptyEarn(), charts: [] },
+      cache: { account: notConnectedAccount(), spot: emptySpot(), earn: emptyEarn(), spotOrders: emptyOrders(), charts: [] },
       ready: false,
       inflight: null,
     };
@@ -48,10 +50,15 @@ function merge(prev: DeskSnapshot, next: DeskSnapshot): DeskSnapshot {
     !next.earn.connected && next.earn.reason !== "not_configured" && prev.earn.connected
       ? { ...prev.earn, message: next.earn.message }
       : next.earn;
+  const spotOrders =
+    !next.spotOrders.connected && next.spotOrders.reason !== "not_configured" && prev.spotOrders.connected && !/permission denied|query open orders/i.test(next.spotOrders.message ?? "")
+      ? prev.spotOrders
+      : next.spotOrders;
   return {
     account,
     spot,
     earn,
+    spotOrders,
     charts: keepAccount ? prev.charts : account.positions.length ? next.charts : [],
   };
 }
@@ -60,9 +67,14 @@ async function refreshSnapshot(): Promise<DeskSnapshot> {
   const poll = state();
   if (poll.inflight) return poll.inflight;
   poll.inflight = (async () => {
-    const [account, spot, earn] = await Promise.all([fetchKrakenAccount(), fetchKrakenSpot(), fetchKrakenEarn()]);
+    const [account, spot, earn, spotOrders] = await Promise.all([
+      fetchKrakenAccount(),
+      fetchKrakenSpot(),
+      fetchKrakenEarn(),
+      fetchKrakenOpenOrders(),
+    ]);
     const charts = account.connected && account.positions.length > 0 ? await buildCharts(account.positions) : [];
-    poll.cache = merge(poll.cache, { account, spot, earn, charts });
+    poll.cache = merge(poll.cache, { account, spot, earn, spotOrders, charts });
     poll.ready = true;
     return poll.cache;
   })().finally(() => {

@@ -43,7 +43,7 @@ npm start
 | `ASSISTANT_WEBHOOK_URL` | no | Where the server forwards a chat message. Both this and the key must be set. |
 | `ASSISTANT_WEBHOOK_KEY` | no | Sent only on that server-side request, as `Authorization: Bearer` and `X-Webhook-Key`. Never sent to the browser. |
 
-The futures read key calls only `GET /api/v3/accounts` and `GET /api/v3/openpositions`. The spot key calls only `POST /0/private/Balance`, `POST /0/private/BalanceEx`, and `POST /0/private/Earn/Allocations` with `converted_asset` USD, plus the public ticker for USD value. Those keys never place, edit, or cancel orders and never move funds.
+The futures read key calls only `GET /api/v3/accounts` and `GET /api/v3/openpositions`. The spot key calls only `POST /0/private/Balance`, `POST /0/private/BalanceEx`, `POST /0/private/OpenOrders`, and `POST /0/private/Earn/Allocations` with `converted_asset` USD, plus the public ticker for USD value. Those keys never place, edit, or cancel orders and never move funds.
 
 Force stop is separate. It uses `KRAKEN_FUTURES_TRADE_API_KEY` and only `POST /api/v3/cancelallorders` plus reduce-only `POST /api/v3/sendorder`. It does not withdraw or transfer.
 

@@ -2,7 +2,7 @@
 
 import { formatCompact, formatPrice, formatUsd } from "@/lib/format";
 import { formatSofiaWhen } from "@/lib/time";
-import type { AccountPayload, EarnPayload, SpotPayload } from "@/lib/types";
+import type { AccountPayload, EarnPayload, SpotOrdersPayload, SpotPayload } from "@/lib/types";
 
 function Stat({ label, value, className }: { label: string; value: string; className?: string }) {
   return (
@@ -13,7 +13,17 @@ function Stat({ label, value, className }: { label: string; value: string; class
   );
 }
 
-export function KrakenStrip({ account, spot, earn }: { account: AccountPayload; spot: SpotPayload; earn: EarnPayload }) {
+export function KrakenStrip({
+  account,
+  spot,
+  earn,
+  spotOrders,
+}: {
+  account: AccountPayload;
+  spot: SpotPayload;
+  earn: EarnPayload;
+  spotOrders: SpotOrdersPayload;
+}) {
   const futures = Math.max(0, account.portfolioValue ?? 0);
   const spotUsd = Math.max(0, spot.totalUsd ?? 0);
   const earnUsd = Math.max(0, earn.totalUsd ?? 0);
@@ -85,8 +95,68 @@ export function KrakenStrip({ account, spot, earn }: { account: AccountPayload; 
           )}
         </div>
       </div>
+      <SpotOrders orders={spotOrders} />
     </section>
   );
+}
+
+function SpotOrders({ orders }: { orders: SpotOrdersPayload }) {
+  if (orders.reason === "not_configured") return null;
+  return (
+    <div className="mt-4">
+      <div className="mb-2 flex items-center gap-2">
+        <h3 className="text-lg font-semibold">Open spot orders</h3>
+        <span className="rounded-full border border-[#22d3ee]/40 bg-[#22d3ee]/10 px-2 py-0.5 text-xs text-[#67e8f9]">{orders.orders.length}</span>
+      </div>
+      {!orders.connected ? (
+        <p className="text-sm text-[#b7b3d9]">{orders.message}</p>
+      ) : orders.orders.length === 0 ? (
+        <p className="text-sm text-[#b7b3d9]">No open spot orders</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px] text-left text-sm">
+            <thead className="text-[11px] tracking-wide text-[#b7b3d9] uppercase">
+              <tr>
+                {["Pair", "Side", "Type", "Price", "Amount", "Filled", "Value", "Age"].map((label) => (
+                  <th key={label} scope="col" className="px-2 py-2 font-medium">
+                    {label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {orders.orders.map((order) => {
+                const filled = order.volume && order.filled != null ? (order.filled / order.volume) * 100 : null;
+                return (
+                  <tr key={order.id} className="border-t border-[#2e3a66]/80">
+                    <td className="px-2 py-2 font-medium">{order.pair || "—"}</td>
+                    <td className={`px-2 py-2 capitalize ${order.side === "buy" ? "text-[#3DDC97]" : order.side === "sell" ? "text-[#fb7185]" : "text-[#b7b3d9]"}`}>{order.side || "—"}</td>
+                    <td className="px-2 py-2 capitalize text-[#b7b3d9]">{order.type || "—"}</td>
+                    <td className="px-2 py-2 font-mono tabular-nums">{formatPrice(order.price && order.price > 0 ? order.price : order.price2)}</td>
+                    <td className="px-2 py-2 font-mono tabular-nums">{order.volume ?? "—"}</td>
+                    <td className="px-2 py-2 font-mono tabular-nums">{filled == null ? "—" : `${filled.toFixed(0)}%`}</td>
+                    <td className="px-2 py-2 font-mono tabular-nums">{formatUsd(order.usdValue)}</td>
+                    <td className="px-2 py-2 text-[#b7b3d9]">{orderAge(order.opentm)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function orderAge(opentm: number | null) {
+  if (opentm == null) return "—";
+  const seconds = Math.max(0, Math.floor(Date.now() / 1000 - opentm));
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d`;
 }
 
 function KrakenMark() {

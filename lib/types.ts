@@ -108,6 +108,28 @@ export type EarnPayload = {
   updatedAt: number | null;
 };
 
+export type SpotOrder = {
+  id: string;
+  pair: string;
+  side: string;
+  type: string;
+  price: number | null;
+  price2: number | null;
+  volume: number | null;
+  filled: number | null;
+  status: string;
+  opentm: number | null;
+  usdValue: number | null;
+};
+
+export type SpotOrdersPayload = {
+  connected: boolean;
+  reason?: "not_configured" | "error";
+  message?: string;
+  orders: SpotOrder[];
+  updatedAt?: number | null;
+};
+
 export type MarketCandle = {
   t: number;
   o: number;
@@ -130,6 +152,7 @@ export type DeskPayload = {
   account: AccountPayload;
   spot: SpotPayload;
   earn: EarnPayload;
+  spotOrders: SpotOrdersPayload;
   charts: PositionChart[];
   items: ActivityItem[];
   trades: Trade[];

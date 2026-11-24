@@ -8,7 +8,7 @@ import { POST as forceStop } from "../app/api/force-stop/route.ts";
 import { applyIngest, readFeed, resetStoreForTests } from "../lib/activity-store.ts";
 import { SESSION_COOKIE, signSession } from "../lib/auth.ts";
 import { readLevels } from "../lib/levels.ts";
-import { fetchKrakenEarn, fetchKrakenSpot, parseEarnAllocations, parseSpotBalances, signSpotRequest } from "../lib/kraken-spot.ts";
+import { fetchKrakenEarn, fetchKrakenOpenOrders, fetchKrakenSpot, parseEarnAllocations, parseOpenOrders, parseSpotBalances, signSpotRequest } from "../lib/kraken-spot.ts";
 
 test("spot signature matches Kraken's documented AddOrder vector", () => {
   const secret = "kQH5HW/8p1uGOVjbgWA7FunAmGO8lsSUXNsu3eow76sz84Q18fWxnyRzBHCd3pd5nE9qa99HAZtuZuj6F1huXg==";
@@ -71,6 +71,68 @@ test("BalanceEx permission denial falls back to Balance and Earn stays separate"
   } finally {
     globalThis.fetch = originalFetch;
     console.error = originalError;
+    for (const [key, value] of Object.entries(previous)) {
+      if (value == null) delete process.env[key];
+      else process.env[key] = value;
+    }
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("open spot orders parse notional and permission denial", async () => {
+  const parsed = parseOpenOrders({
+    result: {
+      open: {
+        OOLDER: {
+          status: "open",
+          opentm: 1700000000,
+          vol: "0.1",
+          vol_exec: "0.025",
+          descr: { pair: "XBTUSD", type: "buy", ordertype: "limit", price: "60000", price2: "0" },
+        },
+        ONEW: {
+          status: "open",
+          opentm: 1700001000,
+          vol: "2",
+          vol_exec: "0",
+          descr: { pair: "ETHUSD", type: "sell", ordertype: "stop-loss-limit", price: "0", price2: "3000" },
+        },
+      },
+    },
+  });
+  assert.equal(parsed[0].id, "ONEW");
+  assert.equal(parsed[0].side, "sell");
+  assert.equal(parsed[0].type, "stop-loss-limit");
+  assert.equal(parsed[0].usdValue, 6000);
+  assert.equal(parsed[1].filled, 0.025);
+  assert.equal(parsed[1].price, 60000);
+  assert.equal(parsed[1].usdValue, 6000);
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "desk-orders-"));
+  const previous = {
+    DATA_DIR: process.env.DATA_DIR,
+    KRAKEN_SPOT_API_KEY: process.env.KRAKEN_SPOT_API_KEY,
+    KRAKEN_SPOT_API_SECRET: process.env.KRAKEN_SPOT_API_SECRET,
+  };
+  const originalFetch = globalThis.fetch;
+  process.env.DATA_DIR = dir;
+  process.env.KRAKEN_SPOT_API_KEY = "spot-key";
+  process.env.KRAKEN_SPOT_API_SECRET = Buffer.from("spot-secret").toString("base64");
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url.endsWith("/0/private/OpenOrders")) return Response.json({ error: ["EGeneral:Permission denied"], result: {} });
+    throw new Error(`unexpected ${url}`);
+  };
+  try {
+    const denied = await fetchKrakenOpenOrders();
+    assert.equal(denied.connected, false);
+    assert.equal(denied.orders.length, 0);
+    assert.equal(denied.message, "needs Query Open Orders & Trades permission");
+    const source = fs.readFileSync(new URL("../lib/kraken-spot.ts", import.meta.url), "utf8");
+    assert.equal(/AddOrder|CancelOrder/.test(source), false);
+    assert.equal(source.includes("/0/private/OpenOrders"), true);
+  } finally {
+    globalThis.fetch = originalFetch;
     for (const [key, value] of Object.entries(previous)) {
       if (value == null) delete process.env[key];
       else process.env[key] = value;
@@ -199,7 +261,7 @@ test("force stop stays gated and closes with reduce-only orders", async () => {
     const spotSource = fs.readFileSync(new URL("../lib/kraken-spot.ts", import.meta.url), "utf8");
     const readSource = fs.readFileSync(new URL("../lib/kraken.ts", import.meta.url), "utf8");
     assert.equal(/withdrawal|transfer/i.test(tradeSource), false);
-    assert.equal(/AddOrder|Withdraw|Earn\/Deallocate/i.test(spotSource), false);
+    assert.equal(/AddOrder|CancelOrder|Withdraw|Earn\/Deallocate/i.test(spotSource), false);
     assert.equal(readSource.includes("sendorder"), false);
   } finally {
     globalThis.fetch = originalFetch;
