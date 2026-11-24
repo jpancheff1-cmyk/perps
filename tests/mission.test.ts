@@ -8,7 +8,72 @@ import { POST as forceStop } from "../app/api/force-stop/route.ts";
 import { applyIngest, readFeed, resetStoreForTests } from "../lib/activity-store.ts";
 import { SESSION_COOKIE, signSession } from "../lib/auth.ts";
 import { readLevels } from "../lib/levels.ts";
-import { parseEarnAllocations, parseSpotBalances } from "../lib/kraken-spot.ts";
+import { fetchKrakenEarn, fetchKrakenSpot, parseEarnAllocations, parseSpotBalances, signSpotRequest } from "../lib/kraken-spot.ts";
+
+test("spot signature matches Kraken's documented AddOrder vector", () => {
+  const secret = "kQH5HW/8p1uGOVjbgWA7FunAmGO8lsSUXNsu3eow76sz84Q18fWxnyRzBHCd3pd5nE9qa99HAZtuZuj6F1huXg==";
+  const postData = "nonce=1616492376594&ordertype=limit&pair=XBTUSD&price=37500&type=buy&volume=1.25";
+  const signature = signSpotRequest(secret, "/0/private/AddOrder", "1616492376594", postData);
+  assert.equal(signature, "4/dpxb3iT4tp/ZCVEwSnEsLxx0bqyhLpdfOpc6fn7OR8+UClSV5n9E6aSS8MPtnRfp32bAb0nmbRn6H8ndwLUQ==");
+});
+
+test("BalanceEx permission denial falls back to Balance and Earn stays separate", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "desk-spot-"));
+  const previous = {
+    DATA_DIR: process.env.DATA_DIR,
+    KRAKEN_SPOT_API_KEY: process.env.KRAKEN_SPOT_API_KEY,
+    KRAKEN_SPOT_API_SECRET: process.env.KRAKEN_SPOT_API_SECRET,
+  };
+  const originalFetch = globalThis.fetch;
+  const originalError = console.error;
+  const logged: string[] = [];
+  const calls: { url: string; body: string; type: string | null; key: string | null }[] = [];
+  process.env.DATA_DIR = dir;
+  process.env.KRAKEN_SPOT_API_KEY = " spot-key \n";
+  process.env.KRAKEN_SPOT_API_SECRET = " c3BvdC1zZWNyZXQ= \n";
+  globalThis.fetch = async (input, init) => {
+    const headers = new Headers(init?.headers);
+    const url = String(input);
+    calls.push({ url, body: String(init?.body ?? ""), type: headers.get("content-type"), key: headers.get("api-key") });
+    if (url.endsWith("/0/private/BalanceEx")) return Response.json({ error: ["EGeneral:Permission denied"], result: {} });
+    if (url.endsWith("/0/private/Balance")) return Response.json({ error: [], result: { ZUSD: "4" } });
+    if (url.includes("/0/public/Ticker")) return Response.json({ error: [], result: {} });
+    if (url.endsWith("/0/private/Earn/Allocations")) return Response.json({ error: ["EGeneral:Permission denied"], result: {} });
+    throw new Error(`unexpected ${url}`);
+  };
+  console.error = (...args: unknown[]) => {
+    logged.push(args.map(String).join(" "));
+  };
+  try {
+    const [spot, earn] = await Promise.all([fetchKrakenSpot(), fetchKrakenEarn()]);
+    assert.equal(spot.connected, true);
+    assert.equal(spot.assets.find((asset) => asset.asset === "ZUSD")?.balance, 4);
+    assert.equal(earn.connected, false);
+    assert.match(earn.message ?? "", /needs Earn query permission/);
+    assert.match(earn.message ?? "", /EGeneral:Permission denied/);
+    assert.match(earn.message ?? "", /HTTP 200/);
+    const extended = calls.find((call) => call.url.endsWith("/0/private/BalanceEx"));
+    const plain = calls.find((call) => call.url.endsWith("/0/private/Balance"));
+    const earned = calls.find((call) => call.url.endsWith("/0/private/Earn/Allocations"));
+    assert.equal(extended?.type, "application/x-www-form-urlencoded");
+    assert.match(extended?.body ?? "", /^nonce=\d+$/);
+    assert.equal(plain?.type, "application/x-www-form-urlencoded");
+    assert.equal(earned?.type, "application/json");
+    assert.match(earned?.body ?? "", /"converted_asset":"USD"/);
+    const privateCalls = calls.filter((call) => call.url.includes("/0/private/"));
+    assert.equal(privateCalls.every((call) => call.key === "spot-key"), true);
+    assert.equal(logged.some((line) => line.includes("EGeneral:Permission denied")), true);
+    assert.equal(logged.some((line) => line.includes("c3BvdC1zZWNyZXQ") || line.includes("spot-key")), false);
+  } finally {
+    globalThis.fetch = originalFetch;
+    console.error = originalError;
+    for (const [key, value] of Object.entries(previous)) {
+      if (value == null) delete process.env[key];
+      else process.env[key] = value;
+    }
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 test("spot balances prefer BalanceEx and price them from the ticker", () => {
   const parsed = parseSpotBalances(
