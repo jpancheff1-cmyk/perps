@@ -29,7 +29,7 @@ function PositionCard({ position, chart, mark, chartId }: { position: AccountPos
           <div className="text-xs tracking-[0.14em] text-[#22d3ee] uppercase">{position.symbol}</div>
           <h3 className={`text-xl font-semibold capitalize ${long ? "text-[#3DDC97]" : "text-[#fb7185]"}`}>{position.side || "position"}</h3>
         </div>
-        <div className={`font-mono text-xl tabular-nums ${toneClass(position.unrealizedPnl)}`}>{formatUsd(position.unrealizedPnl)}</div>
+        <div className={`font-mono text-xl break-words tabular-nums ${toneClass(position.unrealizedPnl)}`}>{formatUsd(position.unrealizedPnl)}</div>
       </div>
       <dl className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
         <Fact label="Entry" value={formatPrice(position.entryPrice)} />
@@ -62,7 +62,7 @@ function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <dt className="text-[10px] tracking-[0.14em] text-[#b7b3d9] uppercase">{label}</dt>
-      <dd className="font-mono tabular-nums">{value}</dd>
+      <dd className="font-mono break-words tabular-nums">{value}</dd>
     </div>
   );
 }

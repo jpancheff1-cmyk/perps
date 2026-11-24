@@ -39,6 +39,8 @@ export function ActivityStream({ items, chatRelay, onRefresh }: { items: Activit
   const [activityOpen, setActivityOpen] = useState(() => typeof window === "undefined" || window.localStorage.getItem("mission-activity-open") !== "0");
   const [chatOpen, setChatOpen] = useState(() => typeof window === "undefined" || window.localStorage.getItem("mission-chat-open") !== "0");
   const [mobileTab, setMobileTab] = useState<"activity" | "chat">("activity");
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const asideRef = useRef<HTMLElement>(null);
   if (baseline == null) setBaseline(new Set(items.map((item) => item.id)));
   const visible = items.filter((item) => activityMatches(item, filter));
   const fresh = new Set(baseline == null ? [] : items.filter((item) => !baseline.has(item.id)).map((item) => item.id));
@@ -76,17 +78,41 @@ export function ActivityStream({ items, chatRelay, onRefresh }: { items: Activit
     window.localStorage.setItem(key, next ? "1" : "0");
   }
 
+  function selectTab(tab: "activity" | "chat") {
+    if (sheetOpen && mobileTab === tab) {
+      setSheetOpen(false);
+      return;
+    }
+    setMobileTab(tab);
+    setSheetOpen(true);
+  }
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    const apply = () => {
+      const aside = asideRef.current;
+      if (!aside) return;
+      const phone = window.matchMedia("(max-width: 767px)").matches;
+      if (!phone) {
+        aside.style.bottom = "";
+        return;
+      }
+      const lift = Math.max(0, window.innerHeight - viewport.offsetTop - viewport.height);
+      aside.style.bottom = `${lift}px`;
+    };
+    viewport.addEventListener("resize", apply);
+    viewport.addEventListener("scroll", apply);
+    apply();
+    return () => {
+      viewport.removeEventListener("resize", apply);
+      viewport.removeEventListener("scroll", apply);
+    };
+  }, []);
+
   return (
-    <aside className="fixed z-40 flex flex-col gap-2 inset-x-0 bottom-0 max-h-[85vh] p-2 md:inset-x-auto md:top-4 md:right-4 md:bottom-4 md:w-[380px] md:max-h-none md:p-0">
-      <div className="surface flex gap-1 p-1 md:hidden" role="tablist" aria-label="Dock">
-        <button type="button" role="tab" aria-selected={mobileTab === "activity"} onClick={() => setMobileTab("activity")} className={`flex-1 rounded-full px-3 py-1.5 text-sm ${mobileTab === "activity" ? "bg-[#a855f7]/20 text-[#c4b5fd]" : "text-[#b7b3d9]"}`}>
-          Activity
-        </button>
-        <button type="button" role="tab" aria-selected={mobileTab === "chat"} onClick={() => setMobileTab("chat")} className={`flex-1 rounded-full px-3 py-1.5 text-sm ${mobileTab === "chat" ? "bg-[#a855f7]/20 text-[#c4b5fd]" : "text-[#b7b3d9]"}`}>
-          Chat
-        </button>
-      </div>
-      <div className={`${mobileTab === "activity" ? "flex" : "hidden"} min-h-0 flex-col md:flex ${activityOpen ? "md:h-[55%] md:min-h-0" : ""}`}>
+    <aside ref={asideRef} className={`fixed z-40 flex flex-col gap-2 inset-x-0 bottom-0 overflow-hidden pt-2 ps-[max(0.5rem,env(safe-area-inset-left))] pe-[max(0.5rem,env(safe-area-inset-right))] pb-2 md:inset-x-auto md:top-4 md:right-4 md:bottom-4 md:max-h-none md:overflow-visible md:p-0 md:w-[380px] ${sheetOpen ? "max-md:max-h-[min(78vh,640px)]" : ""}`}>
+      <div className={`${sheetOpen && mobileTab === "activity" ? "flex max-md:min-h-0 max-md:flex-1" : "hidden"} min-h-0 flex-col md:flex ${activityOpen ? "md:h-[55%] md:min-h-0" : ""}`}>
         {activityOpen ? (
           <section className="surface flex min-h-0 flex-1 flex-col border-[#a855f7]/40 p-3 shadow-[0_16px_50px_rgba(8,10,30,0.55)]">
             <div className="mb-2 flex items-center justify-between gap-2">
@@ -98,7 +124,7 @@ export function ActivityStream({ items, chatRelay, onRefresh }: { items: Activit
                   setActivityOpen(false);
                   remember("mission-activity-open", false);
                 }}
-                className="rounded-full border border-[#2e3a66] px-2 py-0.5 text-xs text-[#b7b3d9]"
+                className="min-h-11 rounded-full border border-[#2e3a66] px-3 text-xs text-[#b7b3d9] md:min-h-0 md:px-2 md:py-0.5"
               >
                 Hide
               </button>
@@ -110,7 +136,7 @@ export function ActivityStream({ items, chatRelay, onRefresh }: { items: Activit
                   type="button"
                   aria-pressed={filter === item.id}
                   onClick={() => setFilter(item.id)}
-                  className={`rounded-full border px-3 py-1 text-sm ${
+                  className={`min-h-11 rounded-full border px-3 text-sm md:min-h-0 md:py-1 ${
                     filter === item.id ? "border-[#a855f7] text-[#c4b5fd]" : "border-[#2e3a66] text-[#b7b3d9] hover:text-[#f8f5ff]"
                   }`}
                 >
@@ -121,7 +147,7 @@ export function ActivityStream({ items, chatRelay, onRefresh }: { items: Activit
             {visible.length === 0 ? (
               <p className="mt-3 text-sm text-[#b7b3d9]">{emptyCopy(filter)}</p>
             ) : (
-              <div className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+              <div className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pr-1 max-md:max-h-[calc(78vh-12rem)]">
                 {visible.map((item) => {
                   const mine = item.source === "you";
                   return (
@@ -139,7 +165,7 @@ export function ActivityStream({ items, chatRelay, onRefresh }: { items: Activit
                       {item.body && <p className="mt-1 text-sm whitespace-pre-wrap text-[#ddd6fe]">{item.body}</p>}
                       {waitingForReply(items, item) && <p className="mt-2 text-xs text-[#b7b3d9]">sent, waiting for reply…</p>}
                       {item.trade && (
-                        <p className="mt-2 font-mono text-xs text-[#b7b3d9]">
+                        <p className="mt-2 font-mono text-xs break-words text-[#b7b3d9]">
                           {item.trade.coin} {item.trade.side} {formatLeverage(item.trade.leverage)} · size {formatQty(item.trade.size)} · entry{" "}
                           {formatPrice(item.trade.entry)}
                           {item.trade.exit != null ? ` · exit ${formatPrice(item.trade.exit)}` : ""}
@@ -162,13 +188,13 @@ export function ActivityStream({ items, chatRelay, onRefresh }: { items: Activit
               setActivityOpen(true);
               remember("mission-activity-open", true);
             }}
-            className="self-end rounded-full bg-gradient-to-r from-[#a855f7] to-[#ec4899] px-4 py-2 text-sm font-medium text-white"
+            className="min-h-11 self-end rounded-full bg-gradient-to-r from-[#a855f7] to-[#ec4899] px-4 text-sm font-medium text-white md:min-h-0 md:py-2"
           >
             Activity
           </button>
         )}
       </div>
-      <div className={`${mobileTab === "chat" ? "flex" : "hidden"} min-h-0 flex-1 flex-col md:flex`}>
+      <div className={`${sheetOpen && mobileTab === "chat" ? "flex" : "hidden"} min-h-0 flex-1 flex-col md:flex`}>
         <ChatDock
           open={chatOpen}
           items={items}
@@ -183,6 +209,19 @@ export function ActivityStream({ items, chatRelay, onRefresh }: { items: Activit
           }}
           onSend={() => void send()}
         />
+      </div>
+      <div className="surface flex shrink-0 gap-1 p-1 pb-[max(0.25rem,env(safe-area-inset-bottom))] md:hidden" role="tablist" aria-label="Dock">
+        <button type="button" role="tab" aria-selected={sheetOpen && mobileTab === "activity"} aria-expanded={sheetOpen && mobileTab === "activity"} onClick={() => selectTab("activity")} className={`min-h-11 flex-1 rounded-full px-3 text-sm ${sheetOpen && mobileTab === "activity" ? "bg-[#a855f7]/20 text-[#c4b5fd]" : "text-[#b7b3d9]"}`}>
+          Activity
+        </button>
+        <button type="button" role="tab" aria-selected={sheetOpen && mobileTab === "chat"} aria-expanded={sheetOpen && mobileTab === "chat"} onClick={() => selectTab("chat")} className={`min-h-11 flex-1 rounded-full px-3 text-sm ${sheetOpen && mobileTab === "chat" ? "bg-[#a855f7]/20 text-[#c4b5fd]" : "text-[#b7b3d9]"}`}>
+          Chat
+        </button>
+        {sheetOpen && (
+          <button type="button" onClick={() => setSheetOpen(false)} className="min-h-11 rounded-full px-3 text-sm text-[#b7b3d9]">
+            Close
+          </button>
+        )}
       </div>
     </aside>
   );
@@ -218,7 +257,7 @@ function ChatDock({
 
   if (!open) {
     return (
-      <button type="button" onClick={() => onOpen(true)} className="self-end rounded-full bg-gradient-to-r from-[#a855f7] to-[#ec4899] px-4 py-2 text-sm font-medium text-white" aria-expanded={false}>
+      <button type="button" onClick={() => onOpen(true)} className="min-h-11 self-end rounded-full bg-gradient-to-r from-[#a855f7] to-[#ec4899] px-4 text-sm font-medium text-white md:min-h-0 md:py-2" aria-expanded={false}>
         Paperboy
       </button>
     );
@@ -228,11 +267,11 @@ function ChatDock({
     <div className="surface flex min-h-0 flex-1 flex-col border-[#a855f7]/40 p-3 shadow-[0_16px_50px_rgba(8,10,30,0.55)]">
       <div className="mb-2 flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold tracking-[0.14em] text-[#c4b5fd] uppercase">Paperboy</h2>
-        <button type="button" onClick={() => onOpen(false)} className="rounded-full border border-[#2e3a66] px-2 py-0.5 text-xs text-[#b7b3d9]" aria-expanded={true}>
+        <button type="button" onClick={() => onOpen(false)} className="min-h-11 rounded-full border border-[#2e3a66] px-3 text-xs text-[#b7b3d9] md:min-h-0 md:px-2 md:py-0.5" aria-expanded={true}>
           Hide
         </button>
       </div>
-          <div ref={scroller} className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1 md:max-h-none max-h-40">
+          <div ref={scroller} className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pr-1 max-md:max-h-[calc(78vh-16rem)] md:max-h-none">
             {thread.length === 0 ? (
               <p className="text-sm text-[#b7b3d9]">No messages yet.</p>
             ) : (
@@ -266,9 +305,9 @@ function ChatDock({
               maxLength={2000}
               placeholder="Message Paperboy"
               aria-label="Message Paperboy"
-              className="h-9 min-w-0 flex-1 rounded-full border border-[#2e3a66] bg-[#141a2e] px-3 text-sm text-[#f8f5ff] outline-none placeholder:text-[#b7b3d9]/70 focus:border-[#a855f7]"
+              className="h-11 min-w-0 flex-1 rounded-full border border-[#2e3a66] bg-[#141a2e] px-3 text-base text-[#f8f5ff] outline-none placeholder:text-[#b7b3d9]/70 focus:border-[#a855f7] md:h-9 md:text-sm"
             />
-            <Button type="submit" size="sm" disabled={sending || !draft.trim()}>
+            <Button type="submit" size="sm" className="min-h-11 px-4 md:min-h-0 md:px-3" disabled={sending || !draft.trim()}>
               Send
             </Button>
           </form>

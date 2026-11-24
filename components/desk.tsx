@@ -82,18 +82,18 @@ export function Desk() {
   return (
     <div className="relative z-10 min-h-screen">
       <CoinField />
-      <div className="relative z-10 w-full px-4 py-5 pb-36 sm:px-6 md:w-[calc(100%-412px)] md:pb-8 md:pl-6">
+      <div className="relative z-10 w-full min-w-0 px-4 pt-5 pb-[calc(5.25rem+env(safe-area-inset-bottom))] sm:px-6 md:w-[calc(100%-412px)] md:pt-5 md:pb-8 md:pl-6">
         <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
+          <div className="min-w-0">
             <div className="text-xs tracking-[0.18em] text-[#c4b5fd] uppercase">Live</div>
             <h1 className="text-2xl font-semibold tracking-tight">Mission Control</h1>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {state && <OneUp items={state.items} trades={state.trades} />}
             <span className="rounded-full border border-[#a855f7]/50 bg-[#a855f7]/15 px-3 py-1.5 text-sm text-[#c4b5fd]">
               {clock || "—"} Sofia
             </span>
-            <Button variant="outline" size="sm" onClick={() => void lock()}>
+            <Button variant="outline" size="sm" className="min-h-11 px-4 md:min-h-0 md:px-3" onClick={() => void lock()}>
               Lock
             </Button>
           </div>

@@ -8,7 +8,7 @@ function Stat({ label, value, className }: { label: string; value: string; class
   return (
     <div className="rounded-2xl bg-white/10 px-3 py-2">
       <div className="text-[10px] tracking-[0.14em] text-white/75 uppercase">{label}</div>
-      <div className={`mt-1 font-mono text-lg tabular-nums ${className ?? "text-white"}`}>{value}</div>
+      <div className={`mt-1 font-mono text-lg break-words tabular-nums ${className ?? "text-white"}`}>{value}</div>
     </div>
   );
 }
@@ -65,12 +65,12 @@ export function KrakenStrip({
             <p className="mt-2 text-sm">{spot.reason === "not_configured" ? "Connect spot key" : spot.message}</p>
           ) : (
             <>
-              <div className="mt-1 font-mono text-2xl tabular-nums">{formatUsd(spot.totalUsd)}</div>
+              <div className="mt-1 font-mono text-2xl break-words tabular-nums">{formatUsd(spot.totalUsd)}</div>
               <ul className="mt-3 space-y-1 text-sm">
                 {spot.assets.slice(0, 8).map((asset) => (
-                  <li key={asset.asset} className="flex justify-between gap-3 font-mono">
+                  <li key={asset.asset} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 font-mono">
                     <span>{asset.asset}</span>
-                    <span>
+                    <span className="break-words">
                       {asset.balance} · {formatUsd(asset.usd)}
                     </span>
                   </li>
@@ -86,7 +86,7 @@ export function KrakenStrip({
             <p className="mt-2 text-sm text-[#b7b3d9]">{earn.reason === "not_configured" ? "Connect spot key" : earn.message}</p>
           ) : (
             <>
-              <div className="mt-1 font-mono text-2xl text-[#f8f5ff] tabular-nums">{formatUsd(earn.totalUsd)}</div>
+              <div className="mt-1 font-mono text-2xl break-words text-[#f8f5ff] tabular-nums">{formatUsd(earn.totalUsd)}</div>
               <p className="mt-2 text-sm text-[#b7b3d9]">Rewarded {formatUsd(earn.rewardedUsd)}</p>
             </>
           )}
@@ -113,7 +113,47 @@ function SpotOrders({ orders }: { orders: SpotOrdersPayload }) {
       ) : orders.orders.length === 0 ? (
         <p className="text-sm text-[#b7b3d9]">No open spot orders</p>
       ) : (
-        <div className="overflow-x-auto">
+        <>
+        <div className="space-y-2 md:hidden">
+          {orders.orders.map((order) => {
+            const filled = order.volume && order.filled != null ? (order.filled / order.volume) * 100 : null;
+            return (
+              <article key={order.id} className="rounded-2xl border border-[#2e3a66] p-3 text-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h4 className="font-medium">{order.pair || "—"}</h4>
+                  <span className={`capitalize ${order.side === "buy" ? "text-[#3DDC97]" : order.side === "sell" ? "text-[#fb7185]" : "text-[#b7b3d9]"}`}>{order.side || "—"}</span>
+                </div>
+                <dl className="mt-2 grid grid-cols-2 gap-2">
+                  <div>
+                    <dt className="text-[10px] tracking-[0.14em] text-[#b7b3d9] uppercase">Type</dt>
+                    <dd className="capitalize">{order.type || "—"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] tracking-[0.14em] text-[#b7b3d9] uppercase">Price</dt>
+                    <dd className="font-mono break-words tabular-nums">{formatPrice(order.price && order.price > 0 ? order.price : order.price2)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] tracking-[0.14em] text-[#b7b3d9] uppercase">Amount</dt>
+                    <dd className="font-mono break-words tabular-nums">{order.volume ?? "—"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] tracking-[0.14em] text-[#b7b3d9] uppercase">Filled</dt>
+                    <dd className="font-mono tabular-nums">{filled == null ? "—" : `${filled.toFixed(0)}%`}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] tracking-[0.14em] text-[#b7b3d9] uppercase">Value</dt>
+                    <dd className="font-mono break-words tabular-nums">{formatUsd(order.usdValue)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] tracking-[0.14em] text-[#b7b3d9] uppercase">Age</dt>
+                    <dd>{orderAge(order.opentm)}</dd>
+                  </div>
+                </dl>
+              </article>
+            );
+          })}
+        </div>
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full min-w-[720px] text-left text-sm">
             <thead className="text-[11px] tracking-wide text-[#b7b3d9] uppercase">
               <tr>
@@ -143,6 +183,7 @@ function SpotOrders({ orders }: { orders: SpotOrdersPayload }) {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   );
@@ -188,8 +229,8 @@ function Donut({ futures, spot, earn }: { futures: number; spot: number; earn: n
   ];
   let cursor = 0;
   return (
-    <div className="flex items-center gap-3">
-      <svg viewBox="0 0 96 96" className="h-24 w-24">
+    <div className="flex min-w-0 flex-wrap items-center gap-3">
+      <svg viewBox="0 0 96 96" className="h-24 w-24 shrink-0">
         <circle cx="48" cy="48" r={radius} fill="none" stroke="#2e3a66" strokeWidth="12" />
         {total > 0 &&
           slices.map((slice) => {

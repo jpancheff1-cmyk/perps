@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 
 export function ForceStop({ armed, onDone }: { armed: boolean; onDone: () => void }) {
   const [open, setOpen] = useState(false);
@@ -37,15 +37,25 @@ export function ForceStop({ armed, onDone }: { armed: boolean; onDone: () => voi
     }
   }
 
-  function startHold() {
+  function startHold(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    event.preventDefault();
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      /* The pointer can already be gone. The timer still starts only from this press. */
+    }
     setHolding(true);
+    if (timer.current) window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => {
+      timer.current = null;
       setHolding(false);
       void run();
     }, 2000);
   }
 
-  function stopHold() {
+  function stopHold(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
     if (timer.current) window.clearTimeout(timer.current);
     timer.current = null;
     setHolding(false);
@@ -57,7 +67,7 @@ export function ForceStop({ armed, onDone }: { armed: boolean; onDone: () => voi
         type="button"
         disabled
         title="Set FORCE_STOP_ENABLED to true and add the trade keys."
-        className="h-14 w-full cursor-not-allowed rounded-2xl bg-[#7f1d1d] text-lg font-black tracking-wide text-white/70"
+        className="min-h-14 w-full cursor-not-allowed rounded-2xl bg-[#7f1d1d] px-4 text-lg font-black tracking-wide text-white/70"
       >
         FORCE STOP (not armed)
       </button>
@@ -66,7 +76,7 @@ export function ForceStop({ armed, onDone }: { armed: boolean; onDone: () => voi
 
   return (
     <div>
-      <button type="button" onClick={() => setOpen((current) => !current)} className="h-14 w-full rounded-2xl bg-[#dc2626] text-lg font-black tracking-wide text-white hover:bg-[#ef4444]">
+      <button type="button" onClick={() => setOpen((current) => !current)} className="min-h-14 w-full rounded-2xl bg-[#dc2626] px-4 text-lg font-black tracking-wide text-white hover:bg-[#ef4444]">
         FORCE STOP
       </button>
       {open && (
@@ -78,17 +88,20 @@ export function ForceStop({ armed, onDone }: { armed: boolean; onDone: () => voi
               onChange={(event) => setTyped(event.target.value)}
               placeholder="Type FORCE STOP"
               aria-label="Type FORCE STOP"
-              className="h-10 flex-1 rounded-xl border border-[#2e3a66] bg-[#141a2e] px-3 text-sm"
+              autoComplete="off"
+              autoCapitalize="characters"
+              className="h-11 min-w-0 flex-1 rounded-xl border border-[#2e3a66] bg-[#141a2e] px-3 text-base md:h-10 md:text-sm"
             />
-            <button type="button" disabled={busy || typed !== "FORCE STOP"} onClick={() => void run()} className="h-10 rounded-xl bg-[#dc2626] px-4 text-sm font-semibold text-white disabled:opacity-40">
+            <button type="button" disabled={busy || typed !== "FORCE STOP"} onClick={() => void run()} className="h-11 rounded-xl bg-[#dc2626] px-4 text-sm font-semibold text-white disabled:opacity-40 md:h-10">
               Confirm
             </button>
             <button
               type="button"
               onPointerDown={startHold}
               onPointerUp={stopHold}
-              onPointerLeave={stopHold}
-              className={`h-10 rounded-xl border px-4 text-sm ${holding ? "border-[#dc2626] bg-[#dc2626]/20" : "border-[#7f1d1d]"}`}
+              onPointerCancel={stopHold}
+              onContextMenu={(event) => event.preventDefault()}
+              className={`h-11 touch-none rounded-xl border px-4 text-sm select-none md:h-10 ${holding ? "border-[#dc2626] bg-[#dc2626]/20" : "border-[#7f1d1d]"}`}
             >
               {holding ? "Hold…" : "Hold 2 seconds"}
             </button>

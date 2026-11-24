@@ -38,7 +38,7 @@ export function OpenFuturesTrades({ account }: { account: AccountPayload }) {
                   </span>
                   {row.pending && <span className="text-xs text-[#b7b3d9]">Pending entry</span>}
                 </div>
-                <div className={`font-mono tabular-nums ${toneClass(row.pnlUsd)}`}>
+                <div className={`font-mono break-words tabular-nums ${toneClass(row.pnlUsd)}`}>
                   {formatUsd(row.pnlUsd)} <span className="text-sm">{formatPct(row.pnlPct)}</span>
                 </div>
               </div>
@@ -64,7 +64,7 @@ function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <dt className="text-[10px] tracking-[0.14em] text-[#b7b3d9] uppercase">{label}</dt>
-      <dd className="font-mono tabular-nums">{value}</dd>
+      <dd className="font-mono break-words tabular-nums">{value}</dd>
     </div>
   );
 }

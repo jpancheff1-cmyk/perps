@@ -14,21 +14,6 @@ type Logo = {
   phase: number;
 };
 
-const circle = new Path2D();
-circle.arc(0, 0, 1, 0, Math.PI * 2);
-
-const arcs = new Path2D();
-arcs.arc(0, 0, 0.7, -1.2, 1.2);
-arcs.arc(0, 0, 0.7, Math.PI - 1.2, Math.PI + 1.2);
-
-const dollar = new Path2D();
-dollar.moveTo(0, -0.55);
-dollar.lineTo(0, 0.55);
-dollar.moveTo(0.22, -0.24);
-dollar.bezierCurveTo(0.22, -0.46, -0.28, -0.42, -0.2, -0.18);
-dollar.bezierCurveTo(-0.12, 0.02, 0.12, -0.02, 0.2, 0.18);
-dollar.bezierCurveTo(0.28, 0.42, -0.22, 0.46, -0.22, 0.24);
-
 export function CoinField() {
   const ref = useRef<HTMLCanvasElement>(null);
 
@@ -38,25 +23,29 @@ export function CoinField() {
     const context = canvas.getContext("2d");
     if (!context) return;
 
-    const logos: Logo[] = Array.from({ length: 32 }, (_, index) => {
-      const size = 24 + Math.random() * 66;
-      return {
-        x: Math.random(),
-        y: Math.random(),
-        size,
-        angle: Math.random() * Math.PI * 2,
-        speed: 26 + ((size - 24) / 66) * 84,
-        rot: Math.random() * Math.PI * 2,
-        spin: (Math.random() - 0.5) * (0.15 + size / 220),
-        zoom: index % 8 === 0,
-        phase: Math.random() * Math.PI * 2,
-      };
-    });
+    const circle = new Path2D();
+    circle.arc(0, 0, 1, 0, Math.PI * 2);
+    const arcs = new Path2D();
+    arcs.arc(0, 0, 0.7, -1.2, 1.2);
+    arcs.arc(0, 0, 0.7, Math.PI - 1.2, Math.PI + 1.2);
+    const dollar = new Path2D();
+    dollar.moveTo(0, -0.55);
+    dollar.lineTo(0, 0.55);
+    dollar.moveTo(0.22, -0.24);
+    dollar.bezierCurveTo(0.22, -0.46, -0.28, -0.42, -0.2, -0.18);
+    dollar.bezierCurveTo(-0.12, 0.02, 0.12, -0.02, 0.2, 0.18);
+    dollar.bezierCurveTo(0.28, 0.42, -0.22, 0.46, -0.22, 0.24);
+
+    const phoneQuery = window.matchMedia("(max-width: 767px)");
+    let phone = phoneQuery.matches;
+    let logos = makeLogos(phone);
 
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     let frame = 0;
     let last = performance.now();
+    let lastPaint = 0;
     let running = !reduced;
+    let scrollTimer = 0;
 
     function resize() {
       const ratio = Math.min(window.devicePixelRatio || 1, 2);
@@ -106,14 +95,40 @@ export function CoinField() {
     }
 
     function paint(now: number) {
+      if (phone && now - lastPaint < 32) {
+        if (running) frame = window.requestAnimationFrame(paint);
+        return;
+      }
       const width = window.innerWidth;
       const height = window.innerHeight;
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
+      lastPaint = now;
       context!.clearRect(0, 0, width, height);
       const order = logos.slice().sort((a, b) => a.size - b.size);
       for (const logo of order) drawLogo(logo, width, height, reduced ? 0 : dt);
       if (running) frame = window.requestAnimationFrame(paint);
+    }
+
+    function onPhone() {
+      const next = phoneQuery.matches;
+      if (next === phone) return;
+      phone = next;
+      logos = makeLogos(phone);
+    }
+
+    function onScroll() {
+      if (!phone || reduced || document.hidden) return;
+      running = false;
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(scrollTimer);
+      scrollTimer = window.setTimeout(() => {
+        if (document.hidden || reduced) return;
+        running = true;
+        last = performance.now();
+        lastPaint = 0;
+        frame = window.requestAnimationFrame(paint);
+      }, 180);
     }
 
     function onVisibility() {
@@ -131,15 +146,39 @@ export function CoinField() {
     resize();
     window.addEventListener("resize", resize);
     document.addEventListener("visibilitychange", onVisibility);
+    phoneQuery.addEventListener("change", onPhone);
+    window.addEventListener("scroll", onScroll, { passive: true });
     last = performance.now();
     frame = window.requestAnimationFrame(paint);
     return () => {
       running = false;
+      window.clearTimeout(scrollTimer);
       window.removeEventListener("resize", resize);
       document.removeEventListener("visibilitychange", onVisibility);
+      phoneQuery.removeEventListener("change", onPhone);
+      window.removeEventListener("scroll", onScroll);
       window.cancelAnimationFrame(frame);
     };
   }, []);
 
-  return <canvas ref={ref} aria-hidden className="pointer-events-none fixed inset-0 z-0 opacity-55" />;
+  return <canvas ref={ref} aria-hidden className="pointer-events-none fixed inset-0 z-0 opacity-35 md:opacity-55" />;
+}
+
+function makeLogos(phone: boolean): Logo[] {
+  const count = phone ? 12 : 32;
+  const span = phone ? 24 : 66;
+  return Array.from({ length: count }, (_, index) => {
+    const size = 24 + Math.random() * span;
+    return {
+      x: Math.random(),
+      y: Math.random(),
+      size,
+      angle: Math.random() * Math.PI * 2,
+      speed: (phone ? 12 : 26) + ((size - 24) / 66) * (phone ? 36 : 84),
+      rot: Math.random() * Math.PI * 2,
+      spin: (Math.random() - 0.5) * (0.15 + size / 220),
+      zoom: phone ? false : index % 8 === 0,
+      phase: Math.random() * Math.PI * 2,
+    };
+  });
 }

@@ -12,7 +12,7 @@ export default async function LoginPage({
   const configured = passwordConfigured();
 
   return (
-    <main className="relative z-10 flex min-h-screen items-center justify-center px-4">
+    <main className="relative z-10 flex min-h-screen items-center justify-center px-4 py-[max(1rem,env(safe-area-inset-bottom))]">
       <form action="/api/auth/login" method="post" className="surface w-full max-w-md rounded-3xl p-6 sm:p-8">
         <p className="text-xs tracking-[0.22em] text-[#c4b5fd] uppercase">Live</p>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight">Mission Control</h1>
@@ -29,14 +29,14 @@ export default async function LoginPage({
           autoComplete="current-password"
           required
           disabled={!configured}
-          className="mt-2 h-9 w-full rounded-full border border-[#2e3a66] bg-[#141a2e] px-3 text-sm text-[#f8f5ff] outline-none placeholder:text-[#b7b3d9]/70 focus:border-[#a855f7]"
+          className="mt-2 h-11 w-full rounded-full border border-[#2e3a66] bg-[#141a2e] px-3 text-base text-[#f8f5ff] outline-none placeholder:text-[#b7b3d9]/70 focus:border-[#a855f7] md:h-9 md:text-sm"
         />
         {!configured && <p className="mt-3 text-sm text-[#fb7185]">Set DASHBOARD_PASSWORD on the server and restart.</p>}
         {error && <p className="mt-3 text-sm text-[#fb7185]">Wrong password.</p>}
         <button
           type="submit"
           disabled={!configured}
-          className="mt-5 inline-flex h-9 w-full items-center justify-center rounded-full bg-gradient-to-r from-[#a855f7] to-[#ec4899] text-sm font-medium text-white disabled:opacity-40"
+          className="mt-5 inline-flex h-11 w-full items-center justify-center rounded-full bg-gradient-to-r from-[#a855f7] to-[#ec4899] text-sm font-medium text-white disabled:opacity-40 md:h-9"
         >
           Open desk
         </button>
