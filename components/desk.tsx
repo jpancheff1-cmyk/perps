@@ -82,7 +82,7 @@ export function Desk() {
   return (
     <div className="relative z-10 min-h-screen">
       <CoinField />
-      <div className="relative z-10 mx-auto max-w-6xl px-4 py-5 sm:px-6 sm:py-8">
+      <div className="relative z-10 w-full px-4 py-5 pb-36 sm:px-6 md:w-[calc(100%-412px)] md:pb-8 md:pl-6">
         <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-xs tracking-[0.18em] text-[#c4b5fd] uppercase">Live</div>
@@ -99,7 +99,7 @@ export function Desk() {
           </div>
         </header>
         {error && <p className="mb-3 text-sm text-[#f0abfc]">The desk could not refresh. Trying again.</p>}
-        <div className="space-y-4 pb-44 md:pb-8">
+        <div className="space-y-4">
           {state ? <ForceStop armed={state.forceStopArmed} onDone={() => void refresh()} /> : null}
           {state ? <KrakenStrip account={state.account} spot={state.spot} earn={state.earn} spotOrders={state.spotOrders} /> : <Loading label="Loading the account…" />}
           {state ? <PositionBoard positions={state.account.positions} charts={state.charts} /> : null}
