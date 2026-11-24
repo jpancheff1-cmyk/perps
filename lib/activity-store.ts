@@ -2,6 +2,7 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import { finite } from "./format";
+import { acceptLevels, resetLevelsForTests } from "./levels";
 import { tradeTime } from "./pnl";
 import type { ActivityItem, ActivityTrade, ActivityType, Source, Trade, TradeSide, TradeStatus } from "./types";
 
@@ -9,7 +10,7 @@ const ACTIVITY_LIMIT = 200;
 const TRADE_LIMIT = 500;
 
 const TYPES: Record<Source, ReadonlySet<ActivityType>> = {
-  paperboy: new Set(["brief", "backtest", "status", "reply", "chat"]),
+  paperboy: new Set(["brief", "backtest", "status", "reply", "chat", "levels"]),
   "trading.exe": new Set(["order", "fill", "move", "close"]),
   you: new Set(["chat", "reply"]),
 };
@@ -32,6 +33,7 @@ function tradesFile() {
 
 export function resetStoreForTests() {
   cache = null;
+  resetLevelsForTests();
 }
 
 function readJson(file: string): unknown {
@@ -67,7 +69,8 @@ function isType(value: unknown): value is ActivityType {
     value === "move" ||
     value === "close" ||
     value === "reply" ||
-    value === "chat"
+    value === "chat" ||
+    value === "levels"
   );
 }
 
@@ -322,7 +325,7 @@ export function applyIngest(body: unknown, now = Date.now()): { ok: true } | { o
   if (!isType(input.type) || !TYPES[input.source].has(input.type)) {
     const error =
       input.source === "paperboy"
-        ? "Paperboy accepts brief, backtest, status, reply, or chat."
+        ? "Paperboy accepts brief, backtest, status, reply, chat, or levels."
         : input.source === "you"
           ? "You accepts chat or reply."
           : "Trading.exe accepts order, fill, move, or close.";
@@ -335,6 +338,10 @@ export function applyIngest(body: unknown, now = Date.now()): { ok: true } | { o
   if (!bodyText.ok) return { ok: false, error: "Body must be a string." };
   const ts = eventTime(input.ts, now);
   if (!ts.ok) return ts;
+  if (input.type === "levels") {
+    const levels = acceptLevels(input, ts.value);
+    if (!levels.ok) return levels;
+  }
 
   const store = load();
   const trades = store.trades.map((trade) => ({ ...trade }));
@@ -355,4 +362,20 @@ export function applyIngest(body: unknown, now = Date.now()): { ok: true } | { o
   const nextTrades = trades.sort((a, b) => tradeTime(b) - tradeTime(a) || a.id.localeCompare(b.id)).slice(0, TRADE_LIMIT);
   save({ items, trades: nextTrades });
   return { ok: true };
+}
+
+export function logForceStop(summary: string, now = Date.now()) {
+  const store = load();
+  const item: ActivityItem = {
+    id: crypto.randomUUID(),
+    source: "trading.exe",
+    type: "status",
+    title: "Force stop",
+    body: summary.slice(0, 2000),
+    tradeId: null,
+    trade: null,
+    ts: now,
+  };
+  const items = [item, ...store.items].sort((a, b) => b.ts - a.ts || a.id.localeCompare(b.id)).slice(0, ACTIVITY_LIMIT);
+  save({ items, trades: store.trades });
 }

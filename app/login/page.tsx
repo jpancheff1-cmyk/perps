@@ -14,12 +14,12 @@ export default async function LoginPage({
   return (
     <main className="relative z-10 flex min-h-screen items-center justify-center px-4">
       <form action="/api/auth/login" method="post" className="surface w-full max-w-md rounded-3xl p-6 sm:p-8">
-        <p className="text-xs tracking-[0.22em] text-[#FFA94D] uppercase">Private</p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight">Desk</h1>
-        <p className="mt-2 text-sm text-[#C9A88E]">
+        <p className="text-xs tracking-[0.22em] text-[#c4b5fd] uppercase">Live</p>
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight">Mission Control</h1>
+        <p className="mt-2 text-sm text-[#b7b3d9]">
           The account, executed trades, and the tape stay behind this password.
         </p>
-        <label className="mt-6 block text-sm text-[#C9A88E]" htmlFor="password">
+        <label className="mt-6 block text-sm text-[#b7b3d9]" htmlFor="password">
           Password
         </label>
         <input
@@ -29,14 +29,14 @@ export default async function LoginPage({
           autoComplete="current-password"
           required
           disabled={!configured}
-          className="mt-2 h-9 w-full rounded-full border border-[#3A2414] bg-[#140E0A] px-3 text-sm text-[#FFF4EA] outline-none placeholder:text-[#C9A88E]/70 focus:border-[#FF8A1F]"
+          className="mt-2 h-9 w-full rounded-full border border-[#2e3a66] bg-[#141a2e] px-3 text-sm text-[#f8f5ff] outline-none placeholder:text-[#b7b3d9]/70 focus:border-[#a855f7]"
         />
-        {!configured && <p className="mt-3 text-sm text-[#FF5C5C]">Set DASHBOARD_PASSWORD on the server and restart.</p>}
-        {error && <p className="mt-3 text-sm text-[#FF5C5C]">Wrong password.</p>}
+        {!configured && <p className="mt-3 text-sm text-[#fb7185]">Set DASHBOARD_PASSWORD on the server and restart.</p>}
+        {error && <p className="mt-3 text-sm text-[#fb7185]">Wrong password.</p>}
         <button
           type="submit"
           disabled={!configured}
-          className="mt-5 inline-flex h-9 w-full items-center justify-center rounded-full bg-[#FF8A1F] text-sm font-medium text-[#1A0E06] hover:bg-[#FFA94D] disabled:opacity-40"
+          className="mt-5 inline-flex h-9 w-full items-center justify-center rounded-full bg-gradient-to-r from-[#a855f7] to-[#ec4899] text-sm font-medium text-white disabled:opacity-40"
         >
           Open desk
         </button>

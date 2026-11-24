@@ -66,6 +66,23 @@ async function krakenGet(path: string) {
   return json;
 }
 
+function readPosition(position: Record<string, unknown>): AccountPosition {
+  return {
+    symbol: String(position.symbol ?? position.instrument ?? ""),
+    side: String(position.side ?? "").toLowerCase(),
+    size: finite(position.size) ?? finite(position.balance),
+    entryPrice: finite(position.price) ?? finite(position.entryPrice) ?? finite(position.entry_price),
+    unrealizedPnl: finite(position.unrealizedPnl) ?? finite(position.pnl),
+    leverage: finite(position.maxFixedLeverage) ?? finite(position.leverage) ?? finite(position.effectiveLeverage),
+    liquidationPrice:
+      finite(position.liquidationThreshold) ??
+      finite(position.liquidation_threshold) ??
+      finite(position.liquidationPrice) ??
+      finite(position.liquidation_price),
+    markPrice: finite(position.markPrice) ?? finite(position.mark_price),
+  };
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 }
@@ -117,17 +134,21 @@ export function parseKrakenAccount(accountsJson: unknown, positionsJson: unknown
     : Array.isArray(positionsJson)
       ? positionsJson
       : [];
-  const positions: AccountPosition[] = list.map((row) => {
-    const position = asRecord(row) ?? {};
-    return {
-      symbol: String(position.symbol ?? ""),
-      side: String(position.side ?? ""),
-      size: finite(position.size),
-      entryPrice: finite(position.price) ?? finite(position.entryPrice),
-      unrealizedPnl: finite(position.unrealizedPnl) ?? finite(position.pnl),
-      leverage: finite(position.maxFixedLeverage) ?? finite(position.leverage),
-    };
-  });
+  const positions: AccountPosition[] = list.map((row) => readPosition(asRecord(row) ?? {}));
+  for (const value of Object.values(accounts)) {
+    const account = asRecord(value);
+    const nested = account?.positions;
+    const rows = Array.isArray(nested) ? nested : nested && typeof nested === "object" ? Object.values(nested) : [];
+    for (const row of rows) {
+      const extra = readPosition(asRecord(row) ?? {});
+      const current = positions.find((position) => position.symbol === extra.symbol && position.side === extra.side);
+      if (!current) continue;
+      if (current.liquidationPrice == null) current.liquidationPrice = extra.liquidationPrice;
+      if (current.markPrice == null) current.markPrice = extra.markPrice;
+      if (current.leverage == null) current.leverage = extra.leverage;
+      if (current.unrealizedPnl == null) current.unrealizedPnl = extra.unrealizedPnl;
+    }
+  }
 
   const usdcSource = cashUsdc != null ? "cash" : flexUsdc != null ? "flex" : null;
   return {

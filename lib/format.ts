@@ -45,8 +45,8 @@ export function formatLeverage(value: number | null | undefined): string {
 }
 
 export function toneClass(value: number | null | undefined): string {
-  if (value == null || !Number.isFinite(value) || value === 0) return "text-[#C9A88E]";
-  return value > 0 ? "text-[#3DDC97]" : "text-[#FF5C5C]";
+  if (value == null || !Number.isFinite(value) || value === 0) return "text-[#b7b3d9]";
+  return value > 0 ? "text-[#3DDC97]" : "text-[#fb7185]";
 }
 
 export function finite(value: unknown): number | null {

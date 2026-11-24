@@ -1,7 +1,21 @@
 export type TradeSide = "long" | "short";
 export type TradeStatus = "open" | "closed";
 export type Source = "paperboy" | "trading.exe" | "you";
-export type ActivityType = "brief" | "backtest" | "status" | "order" | "fill" | "move" | "close" | "reply" | "chat";
+export type ActivityType = "brief" | "backtest" | "status" | "order" | "fill" | "move" | "close" | "reply" | "chat" | "levels";
+
+export type LiqCluster = {
+  price: number;
+  usd: number;
+  side: "long" | "short";
+};
+
+export type CoinLevels = {
+  coin: string;
+  support: number[];
+  resistance: number[];
+  liqClusters: LiqCluster[];
+  updatedAt: number;
+};
 
 export type AccountPosition = {
   symbol: string;
@@ -10,6 +24,8 @@ export type AccountPosition = {
   entryPrice: number | null;
   unrealizedPnl: number | null;
   leverage: number | null;
+  liquidationPrice: number | null;
+  markPrice: number | null;
 };
 
 export type AccountPayload = {
@@ -68,10 +84,56 @@ export type ActivityItem = {
   ts: number;
 };
 
+export type SpotAsset = {
+  asset: string;
+  balance: number;
+  usd: number | null;
+};
+
+export type SpotPayload = {
+  connected: boolean;
+  reason?: "not_configured" | "error";
+  message?: string;
+  assets: SpotAsset[];
+  totalUsd: number | null;
+  updatedAt: number | null;
+};
+
+export type EarnPayload = {
+  connected: boolean;
+  reason?: "not_configured" | "error";
+  message?: string;
+  totalUsd: number | null;
+  rewardedUsd: number | null;
+  updatedAt: number | null;
+};
+
+export type MarketCandle = {
+  t: number;
+  o: number;
+  h: number;
+  l: number;
+  c: number;
+};
+
+export type PositionChart = {
+  symbol: string;
+  candles: MarketCandle[];
+  rsi: number | null;
+  support: number | null;
+  resistance: number | null;
+  liqClusters: LiqCluster[];
+  last: number | null;
+};
+
 export type DeskPayload = {
   account: AccountPayload;
+  spot: SpotPayload;
+  earn: EarnPayload;
+  charts: PositionChart[];
   items: ActivityItem[];
   trades: Trade[];
   serverTime: number;
   chatRelay: boolean;
+  forceStopArmed: boolean;
 };

@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Desk",
-  description: "Read-only Kraken Futures account, executed trades, and the activity tape.",
+  title: "Mission Control",
+  description: "Kraken futures, spot, and the activity tape.",
   robots: { index: false, follow: false },
 };
 

@@ -26,6 +26,7 @@ const TYPE_LABEL: Record<ActivityItem["type"], string> = {
   close: "Close",
   reply: "Reply",
   chat: "Chat",
+  levels: "Levels",
 };
 
 export function ActivityStream({ items, chatRelay, onRefresh }: { items: ActivityItem[]; chatRelay: boolean; onRefresh: () => void }) {
@@ -69,10 +70,10 @@ export function ActivityStream({ items, chatRelay, onRefresh }: { items: Activit
   }
 
   return (
-    <section className="surface rounded-[22px] p-4 sm:p-5">
+    <section className="surface p-4 sm:p-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <div className="text-xs tracking-[0.16em] text-[#FFA94D] uppercase">Tape</div>
+          <div className="text-xs tracking-[0.16em] text-[#c4b5fd] uppercase">Tape</div>
           <h2 className="text-lg font-semibold">Activity</h2>
         </div>
         <div className="flex flex-wrap gap-2" role="group" aria-label="Filter activity">
@@ -83,7 +84,7 @@ export function ActivityStream({ items, chatRelay, onRefresh }: { items: Activit
               aria-pressed={filter === item.id}
               onClick={() => setFilter(item.id)}
               className={`rounded-full border px-3 py-1 text-sm ${
-                filter === item.id ? "border-[#FF8A1F] text-[#FFA94D]" : "border-[#3A2414] text-[#C9A88E] hover:text-[#FFF4EA]"
+                filter === item.id ? "border-[#a855f7] text-[#c4b5fd]" : "border-[#2e3a66] text-[#b7b3d9] hover:text-[#f8f5ff]"
               }`}
             >
               {item.label}
@@ -92,27 +93,27 @@ export function ActivityStream({ items, chatRelay, onRefresh }: { items: Activit
         </div>
       </div>
       {visible.length === 0 ? (
-        <p className="mt-3 text-sm text-[#C9A88E]">{emptyCopy(filter)}</p>
+        <p className="mt-3 text-sm text-[#b7b3d9]">{emptyCopy(filter)}</p>
       ) : (
         <div className="mt-4 space-y-2">
           {visible.map((item) => {
             const mine = item.source === "you";
             return (
-            <article key={item.id} className={`rounded-2xl border border-[#3A2414] px-4 py-3 ${mine ? "ml-auto w-fit max-w-[85%]" : ""} ${fresh.has(item.id) ? "tape-in" : ""}`}>
+            <article key={item.id} className={`rounded-2xl border border-[#2e3a66] px-4 py-3 ${mine ? "ml-auto w-fit max-w-[85%]" : ""} ${fresh.has(item.id) ? "tape-in" : ""}`}>
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <div className="flex items-center gap-2 text-xs">
-                  <span className="tracking-[0.14em] text-[#FFA94D] uppercase">{sourceLabel(item.source)}</span>
-                  <span className="text-[#C9A88E]">{TYPE_LABEL[item.type]}</span>
+                  <span className="tracking-[0.14em] text-[#c4b5fd] uppercase">{sourceLabel(item.source)}</span>
+                  <span className="text-[#b7b3d9]">{TYPE_LABEL[item.type]}</span>
                 </div>
-                <time className="text-xs text-[#C9A88E]" dateTime={new Date(item.ts).toISOString()}>
+                <time className="text-xs text-[#b7b3d9]" dateTime={new Date(item.ts).toISOString()}>
                   {formatSofiaWhen(item.ts)} Sofia
                 </time>
               </div>
               {item.title !== sourceLabel(item.source) && <h3 className="mt-1 font-medium">{item.title}</h3>}
-              {item.body && <p className="mt-1 text-sm whitespace-pre-wrap text-[#E7D3C4]">{item.body}</p>}
-              {waitingForReply(items, item) && <p className="mt-2 text-xs text-[#C9A88E]">sent, waiting for reply…</p>}
+              {item.body && <p className="mt-1 text-sm whitespace-pre-wrap text-[#ddd6fe]">{item.body}</p>}
+              {waitingForReply(items, item) && <p className="mt-2 text-xs text-[#b7b3d9]">sent, waiting for reply…</p>}
               {item.trade && (
-                <p className="mt-2 font-mono text-xs text-[#C9A88E]">
+                <p className="mt-2 font-mono text-xs text-[#b7b3d9]">
                   {item.trade.coin} {item.trade.side} {formatLeverage(item.trade.leverage)} · size {formatQty(item.trade.size)} · entry{" "}
                   {formatPrice(item.trade.entry)}
                   {item.trade.exit != null ? ` · exit ${formatPrice(item.trade.exit)}` : ""}
@@ -126,7 +127,7 @@ export function ActivityStream({ items, chatRelay, onRefresh }: { items: Activit
           })}
         </div>
       )}
-      <div className="sticky bottom-0 mt-4 bg-[#140E0A]/95 pt-3">
+      <div className="sticky bottom-0 mt-4 bg-[#141a2e]/95 pt-3">
       <form
         className="flex gap-2"
         onSubmit={(event) => {
@@ -140,14 +141,14 @@ export function ActivityStream({ items, chatRelay, onRefresh }: { items: Activit
           maxLength={2000}
           placeholder="Message Paperboy"
           aria-label="Message Paperboy"
-          className="h-9 min-w-0 flex-1 rounded-full border border-[#3A2414] bg-[#140E0A] px-3 text-sm text-[#FFF4EA] outline-none placeholder:text-[#C9A88E]/70 focus:border-[#FF8A1F]"
+          className="h-9 min-w-0 flex-1 rounded-full border border-[#2e3a66] bg-[#141a2e] px-3 text-sm text-[#f8f5ff] outline-none placeholder:text-[#b7b3d9]/70 focus:border-[#a855f7]"
         />
         <Button type="submit" size="sm" disabled={sending || !draft.trim()}>
           Send
         </Button>
       </form>
-      {!chatRelay && <p className="mt-2 text-sm text-[#C9A88E]">Chat relay not configured</p>}
-      {sendError && <p className="mt-2 text-sm text-[#FDBA74]">{sendError}</p>}
+      {!chatRelay && <p className="mt-2 text-sm text-[#b7b3d9]">Chat relay not configured</p>}
+      {sendError && <p className="mt-2 text-sm text-[#f0abfc]">{sendError}</p>}
       </div>
     </section>
   );
