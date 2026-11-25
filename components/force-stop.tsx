@@ -3,8 +3,6 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 
 export function ForceStop({ armed, onDone }: { armed: boolean; onDone: () => void }) {
-  const [open, setOpen] = useState(false);
-  const [typed, setTyped] = useState("");
   const [holding, setHolding] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -18,7 +16,7 @@ export function ForceStop({ armed, onDone }: { armed: boolean; onDone: () => voi
       const response = await fetch("/api/force-stop", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ confirm: "FORCE STOP" }),
+        body: JSON.stringify({}),
       });
       const payload = (await response.json().catch(() => null)) as { ok?: boolean; error?: string; positions?: { ok: boolean }[]; cancel?: { ok: boolean } } | null;
       if (!response.ok || !payload?.ok) {
@@ -27,8 +25,6 @@ export function ForceStop({ armed, onDone }: { armed: boolean; onDone: () => voi
       }
       const closed = payload.positions?.filter((position) => position.ok).length ?? 0;
       setMessage(payload.cancel?.ok ? `Orders cancelled. ${closed} positions closed.` : `Cancel reported a problem. ${closed} positions closed.`);
-      setOpen(false);
-      setTyped("");
       onDone();
     } catch {
       setMessage("Force stop did not run.");
@@ -38,6 +34,7 @@ export function ForceStop({ armed, onDone }: { armed: boolean; onDone: () => voi
   }
 
   function startHold(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (busy) return;
     if (event.pointerType === "mouse" && event.button !== 0) return;
     event.preventDefault();
     try {
@@ -76,38 +73,20 @@ export function ForceStop({ armed, onDone }: { armed: boolean; onDone: () => voi
 
   return (
     <div>
-      <button type="button" onClick={() => setOpen((current) => !current)} className="min-h-14 w-full rounded-2xl bg-[#dc2626] px-4 text-lg font-black tracking-wide text-white hover:bg-[#ef4444]">
-        FORCE STOP
+      <button
+        type="button"
+        onPointerDown={startHold}
+        onPointerUp={stopHold}
+        onPointerCancel={stopHold}
+        onContextMenu={(event) => event.preventDefault()}
+        aria-describedby="force-stop-hold"
+        className={`min-h-14 w-full touch-none rounded-2xl px-4 text-lg font-black tracking-wide text-white select-none ${holding ? "bg-[#ef4444]" : "bg-[#dc2626]"}`}
+      >
+        {holding ? "Hold…" : "FORCE STOP"}
       </button>
-      {open && (
-        <div className="mt-3 rounded-2xl border border-[#7f1d1d] bg-[#1b2140] p-3">
-          <p className="text-sm text-[#fecaca]">This cancels open futures orders and closes positions with reduce-only market orders. It does not withdraw or transfer.</p>
-          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-            <input
-              value={typed}
-              onChange={(event) => setTyped(event.target.value)}
-              placeholder="Type FORCE STOP"
-              aria-label="Type FORCE STOP"
-              autoComplete="off"
-              autoCapitalize="characters"
-              className="h-11 min-w-0 flex-1 rounded-xl border border-[#2e3a66] bg-[#141a2e] px-3 text-base md:h-10 md:text-sm"
-            />
-            <button type="button" disabled={busy || typed !== "FORCE STOP"} onClick={() => void run()} className="h-11 rounded-xl bg-[#dc2626] px-4 text-sm font-semibold text-white disabled:opacity-40 md:h-10">
-              Confirm
-            </button>
-            <button
-              type="button"
-              onPointerDown={startHold}
-              onPointerUp={stopHold}
-              onPointerCancel={stopHold}
-              onContextMenu={(event) => event.preventDefault()}
-              className={`h-11 touch-none rounded-xl border px-4 text-sm select-none md:h-10 ${holding ? "border-[#dc2626] bg-[#dc2626]/20" : "border-[#7f1d1d]"}`}
-            >
-              {holding ? "Hold…" : "Hold 2 seconds"}
-            </button>
-          </div>
-        </div>
-      )}
+      <p id="force-stop-hold" className="mt-2 text-sm text-[#fecaca]">
+        Hold for 2 seconds. This cancels open futures orders and closes positions with reduce-only market orders. It does not withdraw or transfer.
+      </p>
       {message && <p className="mt-2 text-sm text-[#fecaca]">{message}</p>}
     </div>
   );

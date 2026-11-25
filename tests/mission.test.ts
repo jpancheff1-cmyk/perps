@@ -259,23 +259,19 @@ test("force stop stays gated and closes with reduce-only orders", async () => {
     throw new Error(`unexpected ${url}`);
   };
   try {
-    const anon = await forceStop(stopRequest(null, "FORCE STOP"));
+    const anon = await forceStop(stopRequest(null));
     assert.equal(anon.status, 401);
     assert.equal(calls.length, 0);
 
     const token = signSession();
-    const unconfirmed = await forceStop(stopRequest(token, ""));
-    assert.equal(unconfirmed.status, 400);
-    assert.equal(calls.length, 0);
-
-    const disarmed = await forceStop(stopRequest(token, "FORCE STOP"));
+    const disarmed = await forceStop(stopRequest(token));
     assert.equal(disarmed.status, 403);
     assert.equal(calls.length, 0);
 
     process.env.FORCE_STOP_ENABLED = "true";
     process.env.KRAKEN_FUTURES_TRADE_API_KEY = "trade-key";
     process.env.KRAKEN_FUTURES_TRADE_API_SECRET = Buffer.from("test-secret-key").toString("base64");
-    const armed = await forceStop(stopRequest(token, "FORCE STOP"));
+    const armed = await forceStop(stopRequest(token));
     assert.equal(armed.status, 200);
     const body = await armed.json();
     assert.equal(body.ok, true);
@@ -296,6 +292,9 @@ test("force stop stays gated and closes with reduce-only orders", async () => {
     assert.equal(/withdrawal|transfer/i.test(tradeSource), false);
     assert.equal(/AddOrder|CancelOrder|Withdraw|Earn\/Deallocate/i.test(spotSource), false);
     assert.equal(readSource.includes("sendorder"), false);
+    const route = fs.readFileSync(new URL("../app/api/force-stop/route.ts", import.meta.url), "utf8");
+    assert.equal(route.includes("confirm"), false);
+    assert.equal(route.includes("Type FORCE STOP"), false);
   } finally {
     globalThis.fetch = originalFetch;
     for (const [key, value] of Object.entries(previous)) {
@@ -307,12 +306,12 @@ test("force stop stays gated and closes with reduce-only orders", async () => {
   }
 });
 
-function stopRequest(token: string | null, confirm: string) {
+function stopRequest(token: string | null) {
   const headers = new Headers({ "content-type": "application/json" });
   if (token) headers.set("cookie", `${SESSION_COOKIE}=${token}`);
   return new NextRequest("http://127.0.0.1/api/force-stop", {
     method: "POST",
     headers,
-    body: JSON.stringify(confirm ? { confirm } : {}),
+    body: JSON.stringify({}),
   });
 }

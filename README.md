@@ -166,7 +166,7 @@ The last message from you shows `sent, waiting for reply…` until a Paperboy `r
 
 ## Force stop
 
-`POST /api/force-stop` uses the desk session cookie. The body must be `{ "confirm": "FORCE STOP" }`. Anything else is `400`. A missing session is `401`.
+`POST /api/force-stop` uses the desk session cookie. A missing session is `401`. The page confirms with a 2-second press-and-hold. There is no typed phrase.
 
 The button stays **FORCE STOP (not armed)** unless `FORCE_STOP_ENABLED` is exactly `true` and both trade key variables are set. The server answers `403` in that case and does not call Kraken.
 

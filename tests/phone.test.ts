@@ -33,7 +33,8 @@ test("phone layout keeps the viewport, a closable dock, and a lighter background
   assert.match(stop, /setPointerCapture/);
   assert.match(stop, /onPointerCancel=\{stopHold\}/);
   assert.match(stop, /2000/);
-  assert.match(stop, /confirm: "FORCE STOP"/);
+  assert.equal(stop.includes("Type FORCE STOP"), false);
+  assert.equal(stop.includes("<input"), false);
 
   const css = read("app/globals.css");
   assert.match(css, /overflow-x:\s*clip/);

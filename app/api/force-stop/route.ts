@@ -9,10 +9,6 @@ export const dynamic = "force-dynamic";
 export async function POST(request: NextRequest) {
   const denied = requireUser(request);
   if (denied) return denied;
-  const body = (await request.json().catch(() => null)) as { confirm?: unknown } | null;
-  if (body?.confirm !== "FORCE STOP") {
-    return NextResponse.json({ ok: false, error: "Type FORCE STOP to confirm." }, { status: 400 });
-  }
   if (!forceStopArmed()) {
     return NextResponse.json({ ok: false, error: "FORCE STOP is not armed." }, { status: 403 });
   }
