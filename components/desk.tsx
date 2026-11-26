@@ -8,6 +8,7 @@ import { ForceStop } from "@/components/force-stop";
 import { KrakenStrip } from "@/components/kraken-strip";
 import { OneUp } from "@/components/one-up";
 import { PositionBoard } from "@/components/position-board";
+import { PerformancePanel } from "@/components/performance-panel";
 import { OpenFuturesTrades } from "@/components/trades-panel";
 import { Button } from "@/components/ui/button";
 import { CLIENT_POLL_MS } from "@/lib/poll";
@@ -19,6 +20,7 @@ export function Desk() {
   const [state, setState] = useState<DeskPayload | null>(null);
   const [error, setError] = useState(false);
   const [clock, setClock] = useState("");
+  const [performanceOpen, setPerformanceOpen] = useState(false);
 
   async function refresh() {
     try {
@@ -93,6 +95,9 @@ export function Desk() {
             <span className="rounded-full border border-[#a855f7]/50 bg-[#a855f7]/15 px-3 py-1.5 text-sm text-[#c4b5fd]">
               {clock || "—"} Sofia
             </span>
+            <Button variant="outline" size="sm" className="min-h-11 px-4 md:min-h-0 md:px-3" type="button" onClick={() => setPerformanceOpen(true)}>
+              Performance
+            </Button>
             <Button variant="outline" size="sm" className="min-h-11 px-4 md:min-h-0 md:px-3" onClick={() => void lock()}>
               Lock
             </Button>
@@ -107,6 +112,7 @@ export function Desk() {
           {state ? <ActivityStream items={state.items} chatRelay={state.chatRelay} onRefresh={() => void refresh()} /> : <Loading label="Loading activity…" />}
         </div>
       </div>
+      {performanceOpen ? <PerformancePanel onClose={() => setPerformanceOpen(false)} /> : null}
     </div>
   );
 }

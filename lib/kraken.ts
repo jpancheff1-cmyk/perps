@@ -4,6 +4,14 @@ import { finite } from "./format";
 
 const ALLOWED_PATHS = new Set(["/api/v3/accounts", "/api/v3/openpositions", "/api/v3/openorders"]);
 
+let lastNonce = 0;
+
+/** Strictly increasing nonce shared by every read-only Futures request. */
+export function nextKrakenNonce(now = Date.now()) {
+  lastNonce = now > lastNonce ? now : lastNonce + 1;
+  return String(lastNonce);
+}
+
 export function krakenConfigured() {
   return Boolean(process.env.KRAKEN_FUTURES_API_KEY && process.env.KRAKEN_FUTURES_API_SECRET);
 }
@@ -42,7 +50,7 @@ async function krakenGet(path: string) {
   const key = process.env.KRAKEN_FUTURES_API_KEY;
   const secret = process.env.KRAKEN_FUTURES_API_SECRET;
   if (!key || !secret) throw new Error("Kraken Futures keys are not set");
-  const nonce = Date.now().toString();
+  const nonce = nextKrakenNonce();
   const authent = signKrakenRequest(secret, "", nonce, path);
   const response = await fetch(`https://futures.kraken.com/derivatives${path}`, {
     headers: {
