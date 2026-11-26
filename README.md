@@ -13,7 +13,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open `http://127.0.0.1:3847`. `npm test` checks the Kraken parser, the ingest store, and the realized-PnL series.
+Open `http://127.0.0.1:3847`. `npm test` checks the Kraken parser, the ingest store, the realized-PnL series, and the performance stats.
 
 Production, Node 20 or newer:
 
@@ -29,7 +29,7 @@ npm start
 | Variable | Required | Purpose |
 | --- | --- | --- |
 | `PORT` | no | HTTP port. Default `3847`. Railway sets this. |
-| `DATA_DIR` | no | Directory for `activity.json` and `trades.json`. Default `./data`. On Railway, mount a volume at `/data` and set this to `/data`. |
+| `DATA_DIR` | no | Directory for `activity.json`, `trades.json`, and `performance.json`. Default `./data`. On Railway, mount a volume at `/data` and set this to `/data`. |
 | `DASHBOARD_PASSWORD` | yes | Password for the whole site. |
 | `SESSION_PASSWORD` | no | Signs the session cookie. When unset, `DASHBOARD_PASSWORD` signs it. |
 | `INGEST_TOKEN` | yes, for ingest | Bearer token for `POST /api/ingest`. |
@@ -43,7 +43,7 @@ npm start
 | `ASSISTANT_WEBHOOK_URL` | no | Where the server forwards a chat message. Both this and the key must be set. |
 | `ASSISTANT_WEBHOOK_KEY` | no | Sent only on that server-side request, as `Authorization: Bearer` and `X-Webhook-Key`. Never sent to the browser. |
 
-The futures read key calls only `GET /api/v3/accounts`, `GET /api/v3/openpositions`, and `GET /api/v3/openorders`. The spot key calls only `POST /0/private/Balance`, `POST /0/private/BalanceEx`, `POST /0/private/OpenOrders`, and `POST /0/private/Earn/Allocations` with `converted_asset` USD, plus the public ticker for USD value. Those keys never place, edit, or cancel orders and never move funds.
+The futures read key calls only `GET /api/v3/accounts`, `GET /api/v3/openpositions`, `GET /api/v3/openorders`, and, when the Performance panel asks, `GET /api/v3/fills` plus `GET /api/history/v3/account-log`. The spot key calls only `POST /0/private/Balance`, `POST /0/private/BalanceEx`, `POST /0/private/OpenOrders`, and `POST /0/private/Earn/Allocations` with `converted_asset` USD, plus the public ticker for USD value. Those keys never place, edit, or cancel orders and never move funds.
 
 Force stop is separate. It uses `KRAKEN_FUTURES_TRADE_API_KEY` and only `POST /api/v3/cancelallorders` plus reduce-only `POST /api/v3/sendorder`. It does not withdraw or transfer.
 
@@ -52,6 +52,7 @@ Force stop is separate. It uses `KRAKEN_FUTURES_TRADE_API_KEY` and only `POST /a
 1. Kraken Pro: futures portfolio, USDC, free margin, unrealized PnL, a futures/spot/Earn donut, and spot balances when the spot key is set. Open positions, when any exist, get a 5-minute chart, RSI, and liquidation levels. The server refreshes this about every 30 seconds. The browser reads the cache from `GET /api/state` about every 5 seconds.
 2. Open futures trades: live positions and pending orders, with stops and targets from open orders. An empty book says `No open futures trades`. Ingested trade history is still stored for the tape and the 1UP.
 3. Activity: posts from Paperboy (briefs, backtests, status, replies) and Trading.exe (orders, fills, stop or target moves, closes), plus a chat box. Filter chips: All, Paperboy, Trading.exe, Trades, Chat.
+4. Performance: a button in the header opens the return, drawdown, and cumulative PnL panel. Live reads closed Kraken Futures round trips. Backtest reads the dataset pushed to `POST /api/performance`.
 
 ## Ingest
 
@@ -145,6 +146,54 @@ curl -sS -X POST http://127.0.0.1:3847/api/ingest \
 ```
 
 The latest levels for each coin are kept in `$DATA_DIR/levels.json`. Open-position charts use them for liquidation clusters, and for support or resistance when those arrays are present.
+
+## Performance
+
+The Performance button opens a panel. Live and Backtest are selected inside it. The browser calls `GET /api/performance?source=live` or `source=backtest` with the desk session cookie. That response is stats and the cumulative curve. It never includes API keys.
+
+Live uses the read-only futures key. Fills are grouped into flat-to-flat round trips per symbol. A scale-in stays one trade until the position is flat again. The book started at **$1,000** at 00:00 Europe/Sofia on **25 Nov 2026**. Fills before that are ignored. Price P&L prefers the fill's `realized_pnl` on linear `PF_` contracts, then the account-log `realized_pnl` when that row is USD or a `PF_` contract, then `(exit − entry) × size` for a long and the opposite for a short. Fees are a positive amount paid, so they are subtracted. A negative fee is a credit. `realized_funding` is already signed and is added. Funding while the round trip is open is part of that trade. Funding while flat, and realized cash on a position that is still open, counts in net P&L and the curve, not in win rate. With no closed trades the ratios show `-`.
+
+`POST /api/performance` uses `Authorization: Bearer $INGEST_TOKEN`. No dashboard cookie. Each post replaces the stored backtest in `$DATA_DIR/performance.json`. `ts_open` and `ts_close` are unix milliseconds. A 10-digit unix time is accepted as seconds. An ISO-8601 string is accepted too. `pnl_usd` is the net dollars for that closed trade, fees included if the sender has them. `r_multiple` is optional and is stored with the trade. Avg R:R on the panel is `|average win| / |average loss|` in dollars, so `r_multiple` is not required for that figure.
+
+```json
+{
+  "starting_equity": 10000,
+  "trades": [
+    {
+      "ts_open": 1694764800000,
+      "ts_close": 1694851200000,
+      "symbol": "PF_XBTUSD",
+      "side": "long",
+      "pnl_usd": 125.5,
+      "r_multiple": 1.2
+    }
+  ]
+}
+```
+
+`side` is `long` or `short`. `starting_equity` must be greater than 0. `trades` may be an empty array. The cap is 20,000 trades and 2 MB. A successful post returns `{ "ok": true, "trades": 1 }`.
+
+```bash
+curl -sS -X POST http://127.0.0.1:3847/api/performance \
+  -H "Authorization: Bearer $INGEST_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"starting_equity":10000,"trades":[{"ts_open":1694764800000,"ts_close":1694851200000,"symbol":"PF_XBTUSD","side":"long","pnl_usd":125.5}]}'
+```
+
+The risk-free rate is **0**. Days are UTC days. Daily return is that day's P&L divided by equity at the start of the day. Live includes flat days from 25 Nov 2026 through now. A backtest includes flat days from the first cashflow through the last.
+
+| Stat | Formula |
+| --- | --- |
+| Return | net P&L / starting equity |
+| Net P&L | closed-trade P&L plus leftover realized cash |
+| Win rate | winners / trades. P&L above 0 wins. A zero P&L is in the denominator only. |
+| Expectancy | mean closed-trade P&L |
+| Avg R:R | \|avg win\| / \|avg loss\| |
+| Profit factor | gross profit / \|gross loss\|. `-` when there are no losses. |
+| Max DD | smallest (equity − peak) / peak on the equity curve |
+| Sharpe | mean(daily returns) / sample stdev × √365. Sample stdev divides by n − 1. `-` when n < 2 or stdev is 0. |
+| Sortino | mean(daily returns) / √(Σ min(r, 0)² / N) × √365. N is every day in the window. |
+| Calmar | CAGR / \|max drawdown\|. CAGR = (end / start) ^ (365 / spanDays) − 1. Span is at least one day. `-` when drawdown is 0. |
 
 ## Chat
 
