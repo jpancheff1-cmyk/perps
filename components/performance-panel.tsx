@@ -72,24 +72,24 @@ export function PerformancePanel({ onClose }: { onClose: () => void }) {
   const stats = report?.stats;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-[#070b16]/80 px-3 py-6 sm:px-6 sm:py-10" onClick={onClose}>
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/75 px-3 py-4 sm:px-5 sm:py-6" onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="mx-auto w-full max-w-6xl rounded-2xl border border-[#2e3a66] bg-[#10162b] p-4 shadow-[0_24px_80px_rgba(0,0,0,0.45)] sm:p-6"
+        className="mx-auto w-full max-w-6xl rounded-2xl border border-[#2c2d33] bg-[#121316] p-3 sm:p-4"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-xs tracking-[0.16em] text-[#c4b5fd] uppercase">Desk</div>
-            <h2 id={titleId} className="text-2xl font-semibold tracking-tight">
+            <div className="text-[12px] tracking-[0.14em] text-[#f5d547] uppercase">Desk</div>
+            <h2 id={titleId} className="text-xl font-semibold tracking-tight">
               Performance
             </h2>
-            <p className="mt-1 text-sm text-[#b7b3d9]">{subtitle(source, report)}</p>
+            <p className="mt-0.5 text-[13px] text-[#9a9aa3]">{subtitle(source, report)}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex rounded-full border border-[#2e3a66] p-0.5" role="group" aria-label="Performance source">
+            <div className="flex rounded-full border border-[#2c2d33] p-0.5" role="group" aria-label="Performance source">
               <SourceButton active={source === "live"} onClick={() => setSource("live")}>
                 Live
               </SourceButton>
@@ -103,7 +103,7 @@ export function PerformancePanel({ onClose }: { onClose: () => void }) {
           </div>
         </div>
 
-        <p className="mt-3 text-xs text-[#8b879f]">Sharpe and Sortino use daily returns, a risk-free rate of 0, and √365. Drawdown is peak to trough on equity.</p>
+        <p className="mt-2 text-[12px] text-[#9a9aa3]">Sharpe and Sortino use daily returns, a risk-free rate of 0, and √365. Drawdown is peak to trough on equity.</p>
 
         {error && <p className="mt-3 text-sm text-[#f0abfc]">{error}</p>}
         {!error && report?.message && (
@@ -152,7 +152,7 @@ function SourceButton({ active, onClick, children }: { active: boolean; onClick:
       type="button"
       aria-pressed={active}
       onClick={onClick}
-      className={`min-h-11 rounded-full px-4 text-sm md:min-h-8 ${active ? "bg-[#a855f7] text-white" : "text-[#b7b3d9] hover:text-[#f8f5ff]"}`}
+      className={`min-h-11 rounded-full px-3 text-[13px] md:min-h-8 ${active ? "bg-[#f5d547] text-[#1a1400]" : "text-[#9a9aa3] hover:text-[#f4f4f5]"}`}
     >
       {children}
     </button>
@@ -162,8 +162,8 @@ function SourceButton({ active, onClick, children }: { active: boolean; onClick:
 function Stat({ label, value, tone }: { label: string; value: string; tone: string }) {
   return (
     <div className="min-w-0">
-      <div className="text-[11px] tracking-[0.12em] text-[#b7b3d9] uppercase">{label}</div>
-      <div className={`mt-1 font-mono text-xl font-semibold break-words tabular-nums sm:text-2xl ${value === "-" ? "text-[#8b879f]" : tone}`}>{value}</div>
+      <div className="text-[12px] tracking-[0.12em] text-[#9a9aa3] uppercase">{label}</div>
+      <div className={`mt-1 text-lg font-semibold break-words tabular-nums sm:text-xl ${value === "-" ? "text-[#8b879f]" : tone}`}>{value}</div>
     </div>
   );
 }

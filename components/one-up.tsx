@@ -50,14 +50,14 @@ export function OneUp({ items, trades }: { items: ActivityItem[]; trades: Trade[
 
   return (
     <>
-      <button type="button" onClick={toggleMute} className="min-h-11 rounded-full border border-[#2e3a66] px-3 text-sm text-[#b7b3d9] md:min-h-0 md:py-1.5">
+      <button type="button" onClick={toggleMute} className="min-h-11 rounded-full border border-[#2c2d33] px-2.5 text-[12px] text-[#c6c6cc] md:min-h-0 md:py-1">
         {muted ? "Sound off" : "Sound on"}
       </button>
       {pop > 0 && (
         <div className="pointer-events-none fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-30 flex justify-center md:bottom-16">
           <div key={pop} className="oneup flex flex-col items-center">
             <Image src="/paperboy.png" alt="" width={128} height={128} className="h-24 w-24" />
-            <div className="bg-gradient-to-r from-[#a855f7] to-[#ec4899] bg-clip-text text-6xl font-black tracking-wide text-transparent">1UP</div>
+            <div className="text-5xl font-black tracking-wide text-[#f5d547]">1UP</div>
           </div>
         </div>
       )}

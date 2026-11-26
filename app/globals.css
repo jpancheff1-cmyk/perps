@@ -1,17 +1,14 @@
 @import "tailwindcss";
 
 :root {
-  --background: #141a2e;
-  --foreground: #f8f5ff;
-  --bg: #141a2e;
-  --card: #1b2140;
-  --ink: #f8f5ff;
-  --muted: #b7b3d9;
-  --line: #2e3a66;
-  --accent: #a855f7;
-  --accent-2: #ec4899;
-  --accent-3: #22d3ee;
-  --accent-4: #14b8a6;
+  --background: #070709;
+  --foreground: #f4f4f5;
+  --bg: #070709;
+  --card: #17181c;
+  --ink: #f4f4f5;
+  --muted: #9a9aa3;
+  --line: #2c2d33;
+  --accent: #f5d547;
   --up: #3ddc97;
   --down: #fb7185;
 }
@@ -19,15 +16,13 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-roboto);
-  --font-mono: var(--font-roboto-mono);
 }
 
 html,
 body {
   min-height: 100%;
-  background: #141a2e;
-  color: #f8f5ff;
+  background: #070709;
+  color: #f4f4f5;
   overflow-x: clip;
 }
 
@@ -35,32 +30,51 @@ body {
   padding-top: env(safe-area-inset-top);
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
-  font-family: var(--font-roboto);
 }
 
-body::before {
-  content: "";
-  pointer-events: none;
-  position: fixed;
-  inset: 0;
-  background:
-    radial-gradient(900px 420px at 8% -10%, rgba(168, 85, 247, 0.18), transparent 55%),
-    radial-gradient(680px 380px at 100% 0%, rgba(34, 211, 238, 0.12), transparent 50%);
-  z-index: 0;
+svg text {
+  font-family: inherit;
 }
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
   touch-action: manipulation;
 }
 
 .surface {
-  background: #1b2140;
-  border: 1px solid #2e3a66;
+  background: #17181c;
+  border: 1px solid #2c2d33;
   border-radius: 16px;
-  box-shadow: 0 16px 40px rgba(6, 10, 24, 0.35);
+}
+
+.lift {
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+}
+
+.lift:hover {
+  transform: translateY(-2px);
+  border-color: #f5d547;
+  box-shadow: 0 10px 24px rgba(245, 213, 71, 0.14);
+}
+
+.lift:active {
+  transform: translateY(0);
+}
+
+.num-pop {
+  animation: num-pop 280ms ease;
+}
+
+@keyframes num-pop {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .tape-in {
@@ -70,7 +84,7 @@ select {
 @keyframes tape-in {
   from {
     opacity: 0;
-    transform: translateY(-6px);
+    transform: translateY(-4px);
   }
   to {
     opacity: 1;
@@ -110,20 +124,27 @@ select {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tape-in {
+  .tape-in,
+  .num-pop {
     animation: none;
   }
   .oneup {
     animation: oneup-fade 1.3s ease forwards;
   }
+  .lift,
+  .lift:hover,
+  .lift:active {
+    transition: none;
+    transform: none;
+  }
 }
 
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #2e3a66;
+  background: #3a3b42;
   border-radius: 999px;
 }
 ::-webkit-scrollbar-track {

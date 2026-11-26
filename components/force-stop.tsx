@@ -3,7 +3,7 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 
 /** Shared size for the FORCE STOP / Performance pair. Color stays on each button. */
-const pairButton = "grid min-h-14 w-full place-items-center rounded-2xl px-2 text-center text-base font-black leading-tight tracking-wide select-none sm:px-3 sm:text-lg";
+const pairButton = "grid min-h-14 w-full place-items-center rounded-2xl px-2 text-center text-[17px] font-black leading-tight tracking-wide transition select-none hover:brightness-110 active:brightness-95 sm:px-3 sm:text-[19px]";
 
 export function ForceStop({ armed, onDone, companion }: { armed: boolean; onDone: () => void; companion?: ReactNode }) {
   const [holding, setHolding] = useState(false);

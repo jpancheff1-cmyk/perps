@@ -1,189 +1,265 @@
 "use client";
 
 import { formatCompact, formatPrice, formatUsd } from "@/lib/format";
-import { formatSofiaWhen } from "@/lib/time";
-import type { AccountPayload, EarnPayload, SpotOrdersPayload, SpotPayload } from "@/lib/types";
-
-function Stat({ label, value, className }: { label: string; value: string; className?: string }) {
-  return (
-    <div className="rounded-2xl bg-white/10 px-3 py-2">
-      <div className="text-[10px] tracking-[0.14em] text-white/75 uppercase">{label}</div>
-      <div className={`mt-1 font-mono text-lg break-words tabular-nums ${className ?? "text-white"}`}>{value}</div>
-    </div>
-  );
-}
+import type { AccountPayload, EarnPayload, PositionChart, SpotOrdersPayload, SpotPayload } from "@/lib/types";
 
 export function KrakenStrip({
   account,
   spot,
   earn,
   spotOrders,
+  charts,
+  query,
+  selected,
+  onSelect,
 }: {
   account: AccountPayload;
   spot: SpotPayload;
   earn: EarnPayload;
   spotOrders: SpotOrdersPayload;
+  charts: PositionChart[];
+  query: string;
+  selected: string | null;
+  onSelect: (symbol: string) => void;
 }) {
   const futures = Math.max(0, account.portfolioValue ?? 0);
   const spotUsd = Math.max(0, spot.totalUsd ?? 0);
   const earnUsd = Math.max(0, earn.totalUsd ?? 0);
+  const needle = query.trim().toLowerCase();
+  const positions = account.positions.filter((position) => !needle || `${position.symbol} ${position.side}`.toLowerCase().includes(needle));
+  const assets = spot.assets.filter((asset) => !needle || asset.asset.toLowerCase().includes(needle));
+
+  const cards: Card[] = [
+    {
+      title: "Futures",
+      sub: "Portfolio",
+      value: account.connected ? formatPrice(account.portfolioValue) : "—",
+      hint: account.connected ? "Read only" : "",
+      tone: account.connected && (account.portfolioValue ?? 0) < 0 ? "down" : account.connected ? "up" : "flat",
+      points: [],
+      symbol: positions[0]?.symbol ?? "",
+      swatch: "#f5d547",
+    },
+    {
+      title: "USDC",
+      sub: account.usdcSource === "flex" ? "Flex" : account.usdcSource === "cash" ? "Cash" : "Wallet",
+      value: account.connected ? formatPrice(account.usdcWallet) : "—",
+      hint: account.connected ? "Wallet" : "",
+      tone: "flat",
+      points: [],
+      symbol: "",
+      swatch: "#2775ca",
+    },
+    {
+      title: "Margin",
+      sub: "Free",
+      value: account.connected ? formatPrice(account.availableMargin) : "—",
+      hint: account.connected ? "Available" : "",
+      tone: "flat",
+      points: [],
+      symbol: "",
+      swatch: "#22d3ee",
+    },
+    {
+      title: "Unrealized",
+      sub: "Futures",
+      value: account.connected ? formatCompact(account.unrealizedPnl) : "—",
+      hint: account.connected ? "Open P&L" : "",
+      tone: !account.connected || account.unrealizedPnl == null || account.unrealizedPnl === 0 ? "flat" : account.unrealizedPnl > 0 ? "up" : "down",
+      points: [],
+      symbol: "",
+      swatch: "#3ddc97",
+    },
+  ];
+  for (const position of positions) {
+    const chart = charts.find((item) => item.symbol === position.symbol);
+    const closes = chart?.candles.map((candle) => candle.c) ?? [];
+    const pnl = position.unrealizedPnl;
+    cards.push({
+      title: position.symbol || "Position",
+      sub: position.side || "futures",
+      value: formatUsd(pnl),
+      hint: `Size ${position.size ?? "—"}`,
+      tone: pnl == null || pnl === 0 ? "flat" : pnl > 0 ? "up" : "down",
+      points: closes,
+      symbol: position.symbol,
+      swatch: symbolColor(position.symbol),
+    });
+  }
 
   return (
-    <section className="surface overflow-hidden p-4 sm:p-5">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <KrakenMark />
-          <div>
-            <div className="text-xs tracking-[0.16em] text-[#c4b5fd] uppercase">Exchange</div>
-            <h2 className="text-2xl font-semibold">Kraken Pro</h2>
-            <p className="mt-1 max-w-xl text-sm text-[#b7b3d9]">Futures reads stay read-only. Spot and Earn use a separate query key. Nothing here places, edits, or moves funds.</p>
-          </div>
-        </div>
-        <Donut futures={futures} spot={spot.connected ? spotUsd : 0} earn={earn.connected ? earnUsd : 0} />
+    <section className="mt-2">
+      <p className="mb-1.5 text-sm text-[#9a9aa3]">Futures reads stay read-only. Spot and Earn use a separate query key. Nothing here places, edits, or moves funds.</p>
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {cards.map((card) => (
+          <button
+            key={`${card.title}-${card.sub}`}
+            type="button"
+            onClick={() => (card.symbol ? onSelect(card.symbol) : document.getElementById(card.title === "USDC" || card.title === "Margin" ? "wallet" : "chart")?.scrollIntoView({ block: "nearest" }))}
+            className={`lift surface w-[176px] shrink-0 px-2.5 py-2.5 text-left ${selected && card.symbol === selected ? "border-[#f5d547]" : ""}`}
+            style={{ backgroundImage: `linear-gradient(180deg, ${card.swatch}22, transparent 70%)` }}
+          >
+            <div className="flex items-start justify-between gap-1">
+              <div className="flex min-w-0 items-center gap-1.5">
+                <CoinBadge label={card.title} color={card.swatch} />
+                <div className="min-w-0">
+                  <div className="truncate text-sm text-[#f4f4f5]">{card.title}</div>
+                  <div className="text-sm tracking-wide text-[#9a9aa3] uppercase">{card.sub}</div>
+                </div>
+              </div>
+              <Arrow tone={card.tone} />
+            </div>
+            <div className={`num-pop mt-1 truncate text-base font-semibold tabular-nums ${card.value.startsWith("—") ? "text-[#9a9aa3]" : card.tone === "down" ? "text-[#fb7185]" : card.tone === "up" ? "text-[#3ddc97]" : "text-[#f4f4f5]"}`}>{card.value}</div>
+            <div className="mt-1 flex items-end justify-between gap-1">
+              <Spark points={card.points} tone={card.tone} color={card.swatch} />
+              {card.hint ? <span className="text-sm text-[#9a9aa3]">{card.hint}</span> : null}
+            </div>
+          </button>
+        ))}
+        <article className="surface flex w-[200px] shrink-0 items-center gap-2 px-2.5 py-2">
+          <Donut
+            futures={account.connected ? futures : null}
+            spot={spot.connected ? spotUsd : null}
+            earn={earn.connected ? earnUsd : null}
+          />
+        </article>
       </div>
-      <div className="mt-4 rounded-2xl bg-gradient-to-r from-[#a855f7] to-[#ec4899] p-4 text-white">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-lg font-semibold">Futures</h3>
-          <span className="text-xs text-white/80">{account.connected && account.updatedAt ? `${formatSofiaWhen(account.updatedAt)} Sofia` : "Read only"}</span>
-        </div>
-        {!account.connected ? (
-          <p className="text-sm text-white/90">{account.message ?? "Kraken Futures keys are not set on the server."}</p>
-        ) : (
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Stat label="Portfolio" value={formatPrice(account.portfolioValue)} />
-            <Stat label="USDC" value={formatPrice(account.usdcWallet)} />
-            <Stat label="Free margin" value={formatPrice(account.availableMargin)} />
-            <Stat label="Unrealized" value={formatCompact(account.unrealizedPnl)} className={account.unrealizedPnl != null && account.unrealizedPnl < 0 ? "text-[#ffe4e6]" : "text-white"} />
-          </div>
-        )}
-        {account.message && account.connected && <p className="mt-3 text-sm text-white/90">{account.message}</p>}
-      </div>
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl bg-gradient-to-r from-[#22d3ee] to-[#14b8a6] p-4 text-[#042f2e]">
-          <h3 className="text-lg font-semibold">Spot</h3>
+      <div id="wallet" className="mt-2 grid gap-2 lg:grid-cols-2">
+        <div className="surface px-3 py-2.5">
+          <h3 className="text-[15px] font-semibold">Spot</h3>
           {!spot.connected ? (
-            <p className="mt-2 text-sm">{spot.reason === "not_configured" ? "Connect spot key" : spot.message}</p>
+            <p className="mt-1 text-sm text-[#9a9aa3]">{spot.reason === "not_configured" ? "Connect spot key" : spot.message}</p>
           ) : (
             <>
-              <div className="mt-1 font-mono text-2xl break-words tabular-nums">{formatUsd(spot.totalUsd)}</div>
-              <ul className="mt-3 space-y-1 text-sm">
-                {spot.assets.slice(0, 8).map((asset) => (
-                  <li key={asset.asset} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 font-mono">
+              <div className="text-lg font-semibold tabular-nums">{formatUsd(spot.totalUsd).replace(/^\+/, "")}</div>
+              <ul className="mt-1.5 space-y-0.5 text-sm">
+                {assets.slice(0, 8).map((asset) => (
+                  <li key={asset.asset} className="flex items-baseline justify-between gap-2 rounded-lg px-1 py-0.5 transition hover:bg-[#2775ca]/10">
                     <span>{asset.asset}</span>
-                    <span className="break-words">
+                    <span className="tabular-nums text-[#c6c6cc]">
                       {asset.balance} · {formatUsd(asset.usd)}
                     </span>
                   </li>
                 ))}
-                {spot.assets.length === 0 && <li>No spot balances.</li>}
+                {assets.length === 0 && <li className="text-[#9a9aa3]">{needle ? "No matching balances." : "No spot balances."}</li>}
               </ul>
             </>
           )}
         </div>
-        <div className="rounded-2xl border border-[#2e3a66] bg-[#141a2e] p-4">
-          <h3 className="text-lg font-semibold text-[#f9a8d4]">Earn</h3>
+        <div className="surface px-3 py-2.5">
+          <h3 className="text-[15px] font-semibold text-[#f5d547]">Earn</h3>
           {!earn.connected ? (
-            <p className="mt-2 text-sm text-[#b7b3d9]">{earn.reason === "not_configured" ? "Connect spot key" : earn.message}</p>
+            <p className="mt-1 text-sm text-[#9a9aa3]">{earn.reason === "not_configured" ? "Connect spot key" : earn.message}</p>
           ) : (
             <>
-              <div className="mt-1 font-mono text-2xl break-words text-[#f8f5ff] tabular-nums">{formatUsd(earn.totalUsd)}</div>
-              <p className="mt-2 text-sm text-[#b7b3d9]">Rewarded {formatUsd(earn.rewardedUsd)}</p>
+              <div className="text-lg font-semibold tabular-nums">{formatUsd(earn.totalUsd).replace(/^\+/, "")}</div>
+              <p className="mt-1 text-sm text-[#9a9aa3]">Rewarded {formatUsd(earn.rewardedUsd)}</p>
             </>
           )}
-          {account.connected && account.positions.length > 0 && (
-            <p className="mt-3 text-sm text-[#b7b3d9]">{account.positions.length} open futures {account.positions.length === 1 ? "position" : "positions"}</p>
-          )}
+          {account.connected && <p className="mt-1 text-sm text-[#9a9aa3]">{account.positions.length} open futures {account.positions.length === 1 ? "position" : "positions"}</p>}
         </div>
       </div>
-      <SpotOrders orders={spotOrders} />
+      <SpotOrders orders={spotOrders} query={needle} />
     </section>
   );
 }
 
-function SpotOrders({ orders }: { orders: SpotOrdersPayload }) {
-  if (orders.reason === "not_configured") return null;
+type Tone = "up" | "down" | "flat";
+type Card = { title: string; sub: string; value: string; hint: string; tone: Tone; points: number[]; symbol: string; swatch: string };
+
+function symbolColor(symbol: string) {
+  const key = symbol.toUpperCase();
+  if (key.includes("XBT") || key.includes("BTC")) return "#f7931a";
+  if (key.includes("ETH")) return "#627eea";
+  if (key.includes("SOL")) return "#14f195";
+  if (key.includes("LTC")) return "#345d9d";
+  if (key.includes("XRP")) return "#00aae4";
+  if (key.includes("DOGE")) return "#c2a633";
+  if (key.includes("USDC") || key.includes("USDT")) return "#2775ca";
+  return "#f5d547";
+}
+
+function CoinBadge({ label, color }: { label: string; color: string }) {
+  const letter = label.replace(/[^A-Za-z]/g, "").slice(0, 1) || "•";
   return (
-    <div className="mt-4">
-      <div className="mb-2 flex items-center gap-2">
-        <h3 className="text-lg font-semibold">Open spot orders</h3>
-        <span className="rounded-full border border-[#22d3ee]/40 bg-[#22d3ee]/10 px-2 py-0.5 text-xs text-[#67e8f9]">{orders.orders.length}</span>
+    <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-sm font-bold text-[#070709]" style={{ background: color }} aria-hidden>
+      {letter}
+    </span>
+  );
+}
+
+function Arrow({ tone }: { tone: Tone }) {
+  const color = tone === "up" ? "bg-[#3ddc97] text-[#06281c]" : tone === "down" ? "bg-[#fb7185] text-[#2a0610]" : "bg-[#2c2d33] text-[#9a9aa3]";
+  return (
+    <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-full text-[12px] ${color}`} aria-hidden>
+      {tone === "up" ? "↗" : tone === "down" ? "↘" : "–"}
+    </span>
+  );
+}
+
+function Spark({ points, tone, color }: { points: number[]; tone: Tone; color: string }) {
+  if (points.length < 2) return <span className="text-sm text-[#6d6d76]">No 5m</span>;
+  const min = Math.min(...points);
+  const max = Math.max(...points);
+  const span = max - min || 1;
+  const d = points
+    .map((value, index) => {
+      const x = (index / (points.length - 1)) * 64;
+      const y = 18 - ((value - min) / span) * 16;
+      return `${index === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`;
+    })
+    .join(" ");
+  return (
+    <svg viewBox="0 0 64 20" className="h-5 w-16" aria-hidden>
+      <path d={d} fill="none" stroke={tone === "down" ? "#fb7185" : color} strokeWidth="1.8" />
+    </svg>
+  );
+}
+
+function SpotOrders({ orders, query }: { orders: SpotOrdersPayload; query: string }) {
+  if (orders.reason === "not_configured") return null;
+  const rows = orders.orders.filter((order) => !query || `${order.pair} ${order.side} ${order.type}`.toLowerCase().includes(query));
+  return (
+    <div className="surface mt-2 px-3 py-2.5">
+      <div className="mb-1.5 flex items-center gap-2">
+        <h3 className="text-[15px] font-semibold">Open spot orders</h3>
+        <span className="rounded-full bg-[#f5d547]/15 px-1.5 text-sm text-[#f5d547]">{rows.length}</span>
       </div>
       {!orders.connected ? (
-        <p className="text-sm text-[#b7b3d9]">{orders.message}</p>
-      ) : orders.orders.length === 0 ? (
-        <p className="text-sm text-[#b7b3d9]">No open spot orders</p>
+        <p className="text-sm text-[#9a9aa3]">{orders.message}</p>
+      ) : rows.length === 0 ? (
+        <p className="text-sm text-[#9a9aa3]">{query ? "No matching spot orders" : "No open spot orders"}</p>
       ) : (
-        <>
-        <div className="space-y-2 md:hidden">
-          {orders.orders.map((order) => {
-            const filled = order.volume && order.filled != null ? (order.filled / order.volume) * 100 : null;
-            return (
-              <article key={order.id} className="rounded-2xl border border-[#2e3a66] p-3 text-sm">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h4 className="font-medium">{order.pair || "—"}</h4>
-                  <span className={`capitalize ${order.side === "buy" ? "text-[#3DDC97]" : order.side === "sell" ? "text-[#fb7185]" : "text-[#b7b3d9]"}`}>{order.side || "—"}</span>
-                </div>
-                <dl className="mt-2 grid grid-cols-2 gap-2">
-                  <div>
-                    <dt className="text-[10px] tracking-[0.14em] text-[#b7b3d9] uppercase">Type</dt>
-                    <dd className="capitalize">{order.type || "—"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-[10px] tracking-[0.14em] text-[#b7b3d9] uppercase">Price</dt>
-                    <dd className="font-mono break-words tabular-nums">{formatPrice(order.price && order.price > 0 ? order.price : order.price2)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-[10px] tracking-[0.14em] text-[#b7b3d9] uppercase">Amount</dt>
-                    <dd className="font-mono break-words tabular-nums">{order.volume ?? "—"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-[10px] tracking-[0.14em] text-[#b7b3d9] uppercase">Filled</dt>
-                    <dd className="font-mono tabular-nums">{filled == null ? "—" : `${filled.toFixed(0)}%`}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-[10px] tracking-[0.14em] text-[#b7b3d9] uppercase">Value</dt>
-                    <dd className="font-mono break-words tabular-nums">{formatUsd(order.usdValue)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-[10px] tracking-[0.14em] text-[#b7b3d9] uppercase">Age</dt>
-                    <dd>{orderAge(order.opentm)}</dd>
-                  </div>
-                </dl>
-              </article>
-            );
-          })}
-        </div>
-        <div className="hidden overflow-x-auto md:block">
-          <table className="w-full min-w-[720px] text-left text-sm">
-            <thead className="text-[11px] tracking-wide text-[#b7b3d9] uppercase">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px] text-left text-sm">
+            <thead className="text-sm tracking-wide text-[#9a9aa3] uppercase">
               <tr>
                 {["Pair", "Side", "Type", "Price", "Amount", "Filled", "Value", "Age"].map((label) => (
-                  <th key={label} scope="col" className="px-2 py-2 font-medium">
+                  <th key={label} scope="col" className="px-1.5 py-1 font-medium">
                     {label}
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {orders.orders.map((order) => {
+              {rows.map((order) => {
                 const filled = order.volume && order.filled != null ? (order.filled / order.volume) * 100 : null;
                 return (
-                  <tr key={order.id} className="border-t border-[#2e3a66]/80">
-                    <td className="px-2 py-2 font-medium">{order.pair || "—"}</td>
-                    <td className={`px-2 py-2 capitalize ${order.side === "buy" ? "text-[#3DDC97]" : order.side === "sell" ? "text-[#fb7185]" : "text-[#b7b3d9]"}`}>{order.side || "—"}</td>
-                    <td className="px-2 py-2 capitalize text-[#b7b3d9]">{order.type || "—"}</td>
-                    <td className="px-2 py-2 font-mono tabular-nums">{formatPrice(order.price && order.price > 0 ? order.price : order.price2)}</td>
-                    <td className="px-2 py-2 font-mono tabular-nums">{order.volume ?? "—"}</td>
-                    <td className="px-2 py-2 font-mono tabular-nums">{filled == null ? "—" : `${filled.toFixed(0)}%`}</td>
-                    <td className="px-2 py-2 font-mono tabular-nums">{formatUsd(order.usdValue)}</td>
-                    <td className="px-2 py-2 text-[#b7b3d9]">{orderAge(order.opentm)}</td>
+                  <tr key={order.id} className="border-t border-[#2c2d33] transition hover:bg-[#f5d547]/10">
+                    <td className="px-1.5 py-1 font-medium">{order.pair || "—"}</td>
+                    <td className={`px-1.5 py-1 capitalize ${order.side === "buy" ? "text-[#3ddc97]" : order.side === "sell" ? "text-[#fb7185]" : "text-[#9a9aa3]"}`}>{order.side || "—"}</td>
+                    <td className="px-1.5 py-1 capitalize text-[#9a9aa3]">{order.type || "—"}</td>
+                    <td className="px-1.5 py-1 tabular-nums">{formatPrice(order.price && order.price > 0 ? order.price : order.price2)}</td>
+                    <td className="px-1.5 py-1 tabular-nums">{order.volume ?? "—"}</td>
+                    <td className="px-1.5 py-1 tabular-nums">{filled == null ? "—" : `${filled.toFixed(0)}%`}</td>
+                    <td className="px-1.5 py-1 tabular-nums">{formatUsd(order.usdValue)}</td>
+                    <td className="px-1.5 py-1 text-[#9a9aa3]">{orderAge(order.opentm)}</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
         </div>
-        </>
       )}
     </div>
   );
@@ -200,56 +276,43 @@ function orderAge(opentm: number | null) {
   return `${Math.floor(hours / 24)}d`;
 }
 
-function KrakenMark() {
-  return (
-    <svg viewBox="0 0 64 64" className="h-14 w-14 shrink-0" aria-hidden>
-      <circle cx="32" cy="22" r="12" fill="#a855f7" />
-      <circle cx="27" cy="20" r="1.7" fill="#f8f5ff" />
-      <circle cx="37" cy="20" r="1.7" fill="#f8f5ff" />
-      <path d="M22 30c-8 6-12 16-8 24" fill="none" stroke="#c084fc" strokeWidth="3" strokeLinecap="round" />
-      <path d="M26 32c-4 8-6 16-2 22" fill="none" stroke="#e879f9" strokeWidth="3" strokeLinecap="round" />
-      <path d="M32 34c0 8 0 16 2 22" fill="none" stroke="#a855f7" strokeWidth="3" strokeLinecap="round" />
-      <path d="M38 32c4 8 6 16 2 22" fill="none" stroke="#ec4899" strokeWidth="3" strokeLinecap="round" />
-      <path d="M42 30c8 6 12 16 8 24" fill="none" stroke="#f472b6" strokeWidth="3" strokeLinecap="round" />
-      <path d="M18 28c-10 2-14 12-10 20" fill="none" stroke="#818cf8" strokeWidth="3" strokeLinecap="round" />
-      <path d="M46 28c10 2 14 12 10 20" fill="none" stroke="#22d3ee" strokeWidth="3" strokeLinecap="round" />
-      <path d="M24 36c-2 10 2 18 8 20" fill="none" stroke="#14b8a6" strokeWidth="3" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function Donut({ futures, spot, earn }: { futures: number; spot: number; earn: number }) {
-  const total = futures + spot + earn;
-  const radius = 36;
+function Donut({ futures, spot, earn }: { futures: number | null; spot: number | null; earn: number | null }) {
+  const known = [futures, spot, earn].filter((value): value is number => value != null);
+  const total = known.reduce((sum, value) => sum + Math.max(0, value), 0);
+  const radius = 18;
   const circ = 2 * Math.PI * radius;
   const slices = [
-    { value: futures, color: "#ec4899" },
-    { value: spot, color: "#22d3ee" },
-    { value: earn, color: "#a855f7" },
+    { value: futures, color: "#f5d547", name: "Futures" },
+    { value: spot, color: "#3ddc97", name: "Spot" },
+    { value: earn, color: "#9a9aa3", name: "Earn" },
   ];
   let cursor = 0;
   return (
-    <div className="flex min-w-0 flex-wrap items-center gap-3">
-      <svg viewBox="0 0 96 96" className="h-24 w-24 shrink-0">
-        <circle cx="48" cy="48" r={radius} fill="none" stroke="#2e3a66" strokeWidth="12" />
+    <>
+      <svg viewBox="0 0 48 48" className="h-12 w-12 shrink-0" aria-hidden>
+        <circle cx="24" cy="24" r={radius} fill="none" stroke="#2c2d33" strokeWidth="6" />
         {total > 0 &&
           slices.map((slice) => {
-            const length = (slice.value / total) * circ;
+            const length = ((slice.value ?? 0) / total) * circ;
             const dash = `${length} ${circ - length}`;
             const offset = circ * 0.25 - cursor;
             cursor += length;
-            if (slice.value <= 0) return null;
-            return <circle key={slice.color} cx="48" cy="48" r={radius} fill="none" stroke={slice.color} strokeWidth="12" strokeDasharray={dash} strokeDashoffset={offset} />;
+            if ((slice.value ?? 0) <= 0) return null;
+            return (
+              <circle key={slice.name} cx="24" cy="24" r={radius} fill="none" stroke={slice.color} strokeWidth="6" strokeDasharray={dash} strokeDashoffset={offset}>
+                <title>{`${slice.name}: ${slice.value == null ? "not connected" : formatUsd(slice.value)}`}</title>
+              </circle>
+            );
           })}
-        <text x="48" y="52" textAnchor="middle" fill="#f8f5ff" fontSize="11">
-          {total > 0 ? formatCompact(total) : "—"}
-        </text>
       </svg>
-      <div className="space-y-1 text-xs text-[#b7b3d9]">
-        <div><span className="mr-2 inline-block h-2 w-2 rounded-full bg-[#ec4899]" />Futures {formatUsd(futures)}</div>
-        <div><span className="mr-2 inline-block h-2 w-2 rounded-full bg-[#22d3ee]" />Spot {formatUsd(spot)}</div>
-        <div><span className="mr-2 inline-block h-2 w-2 rounded-full bg-[#a855f7]" />Earn {formatUsd(earn)}</div>
+      <div className="min-w-0 text-sm text-[#9a9aa3]">
+        <div className="text-[#f4f4f5]">{total > 0 ? formatCompact(total) : "—"}</div>
+        {slices.map((slice) => (
+          <div key={slice.name} className="truncate">
+            {slice.name} {slice.value == null ? "—" : formatUsd(slice.value)}
+          </div>
+        ))}
       </div>
-    </div>
+    </>
   );
 }
