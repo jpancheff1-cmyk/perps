@@ -5,44 +5,46 @@ import { buildOpenFutures } from "@/lib/futures-book";
 import { formatSofiaWhen } from "@/lib/time";
 import type { AccountPayload } from "@/lib/types";
 
-export function OpenFuturesTrades({ account }: { account: AccountPayload }) {
+export function OpenFuturesTrades({ account, query = "" }: { account: AccountPayload; query?: string }) {
   const book = buildOpenFutures(account.positions, account.orders ?? []);
+  const needle = query.trim().toLowerCase();
+  const rows = book.rows.filter((row) => !needle || `${row.symbol} ${row.side}`.toLowerCase().includes(needle));
   return (
-    <section className="surface rounded-2xl p-4 sm:p-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+    <section className="rounded-2xl bg-[#f5d547] p-3 text-[#1a1400]">
+      <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <div className="text-xs tracking-[0.16em] text-[#c4b5fd] uppercase">Futures</div>
-          <h2 className="text-lg font-semibold">Open futures trades</h2>
+          <div className="text-[12px] tracking-[0.14em] uppercase">Futures</div>
+          <h2 className="text-[15px] font-semibold">Open trades</h2>
         </div>
-        {account.connected && book.rows.length > 0 && (
-          <div className="flex flex-wrap gap-4 text-sm">
-            <span className="text-[#b7b3d9]">{book.count} open</span>
+        {account.connected && rows.length > 0 && (
+          <div className="flex flex-wrap gap-2 text-[12px]">
+            <span>{rows.length} open</span>
             <span className={toneClass(book.totalPnl)}>{formatUsd(book.totalPnl)}</span>
-            <span className="text-[#b7b3d9]">Margin {formatUsd(book.totalMargin)}</span>
+            <span>Margin {formatUsd(book.totalMargin)}</span>
           </div>
         )}
       </div>
       {!account.connected ? (
-        <p className="mt-3 text-sm text-[#b7b3d9]">{account.message ?? "Kraken Futures keys are not set on the server."}</p>
-      ) : book.rows.length === 0 ? (
-        <p className="mt-3 text-sm text-[#b7b3d9]">No open futures trades</p>
+        <p className="mt-2 text-[12px]">{account.message ?? "Kraken Futures keys are not set on the server."}</p>
+      ) : rows.length === 0 ? (
+        <p className="mt-2 text-[12px]">{needle ? "No matching futures trades" : "No open futures trades"}</p>
       ) : (
-        <div className="mt-4 space-y-3">
-          {book.rows.map((row) => (
-            <article key={row.id} className="rounded-2xl border border-[#2e3a66] p-3">
+        <div className="mt-2 max-h-80 space-y-2 overflow-y-auto">
+          {rows.map((row) => (
+            <article key={row.id} className="rounded-xl bg-[#1a1400]/10 p-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <h3 className="font-semibold">{row.symbol}</h3>
-                  <span className={`rounded-full px-2 py-0.5 text-xs capitalize ${row.side === "long" ? "bg-[#3DDC97]/15 text-[#3DDC97]" : "bg-[#ec4899]/15 text-[#ec4899]"}`}>
+                  <span className={`rounded-full px-1.5 py-0.5 text-[12px] capitalize ${row.side === "long" ? "bg-[#145c3a] text-[#d1fae5]" : "bg-[#7f1d1d] text-[#ffe4e6]"}`}>
                     {row.side || "—"}
                   </span>
-                  {row.pending && <span className="text-xs text-[#b7b3d9]">Pending entry</span>}
+                  {row.pending && <span className="text-[12px]">Pending entry</span>}
                 </div>
-                <div className={`font-mono break-words tabular-nums ${toneClass(row.pnlUsd)}`}>
+                <div className={`break-words text-[13px] font-semibold tabular-nums ${toneClass(row.pnlUsd)}`}>
                   {formatUsd(row.pnlUsd)} <span className="text-sm">{formatPct(row.pnlPct)}</span>
                 </div>
               </div>
-              <dl className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+              <dl className="mt-1.5 grid grid-cols-2 gap-1 text-[12px] sm:grid-cols-4">
                 <Fact label="Size" value={row.size == null ? "—" : String(row.size)} />
                 <Fact label="Leverage" value={formatLeverage(row.leverage)} />
                 <Fact label="Entry" value={formatPrice(row.entry)} />
@@ -63,8 +65,8 @@ export function OpenFuturesTrades({ account }: { account: AccountPayload }) {
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-[10px] tracking-[0.14em] text-[#b7b3d9] uppercase">{label}</dt>
-      <dd className="font-mono break-words tabular-nums">{value}</dd>
+      <dt className="text-[12px] tracking-[0.12em] uppercase opacity-70">{label}</dt>
+      <dd className="break-words tabular-nums">{value}</dd>
     </div>
   );
 }

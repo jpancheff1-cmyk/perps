@@ -1,21 +1,40 @@
 "use client";
 
+import { useState } from "react";
 import { formatLeverage, formatPrice, formatUsd, toneClass } from "@/lib/format";
 import type { AccountPosition, PositionChart } from "@/lib/types";
 
-export function PositionBoard({ positions, charts }: { positions: AccountPosition[]; charts: PositionChart[] }) {
-  const open = positions.filter((position) => position.symbol && position.size);
-  if (open.length === 0) return null;
+export function PositionBoard({ positions, charts, query = "" }: { positions: AccountPosition[]; charts: PositionChart[]; query?: string }) {
+  const needle = query.trim().toLowerCase();
+  const open = positions.filter((position) => position.symbol && position.size && (!needle || `${position.symbol} ${position.side}`.toLowerCase().includes(needle)));
+  const [active, setActive] = useState(0);
+  const index = open.length === 0 ? 0 : Math.min(active, open.length - 1);
+  const position = open[index];
+  const chart = position ? charts.find((item) => item.symbol === position.symbol) : undefined;
+  const mark = chart?.last ?? position?.markPrice ?? null;
   return (
-    <section className="space-y-4">
-      <h2 className="text-lg font-semibold">Open positions</h2>
-      <div className="grid gap-4 xl:grid-cols-2">
-        {open.map((position, index) => {
-          const chart = charts.find((item) => item.symbol === position.symbol);
-          const mark = chart?.last ?? position.markPrice;
-          return <PositionCard key={`${position.symbol}-${position.side}-${index}`} position={position} chart={chart} mark={mark} chartId={`p${index}`} />;
-        })}
+    <section className="surface px-3 py-2.5">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-[13px] font-semibold">Chart</h2>
+        <div className="flex flex-wrap gap-1" role="group" aria-label="Chart timeframe">
+          <span className="rounded-full bg-[#f5d547] px-2 py-0.5 text-[12px] font-semibold text-[#1a1400]">5m</span>
+          {open.map((item, itemIndex) => (
+            <button
+              key={`${item.symbol}-${item.side}-${itemIndex}`}
+              type="button"
+              onClick={() => setActive(itemIndex)}
+              className={`rounded-full px-2 py-0.5 text-[12px] ${itemIndex === index ? "bg-[#2c2d33] text-[#f4f4f5]" : "text-[#9a9aa3]"}`}
+            >
+              {item.symbol}
+            </button>
+          ))}
+        </div>
       </div>
+      {position ? (
+        <PositionCard position={position} chart={chart} mark={mark} chartId={`p${index}`} />
+      ) : (
+        <p className="py-8 text-center text-[13px] text-[#9a9aa3]">{needle ? "No matching position to chart." : "No open position to chart. The desk only has 5-minute candles for live positions."}</p>
+      )}
     </section>
   );
 }
@@ -23,15 +42,15 @@ export function PositionBoard({ positions, charts }: { positions: AccountPositio
 function PositionCard({ position, chart, mark, chartId }: { position: AccountPosition; chart?: PositionChart; mark: number | null; chartId: string }) {
   const long = position.side === "long";
   return (
-    <article className="surface p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <article>
+      <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <div className="text-xs tracking-[0.14em] text-[#22d3ee] uppercase">{position.symbol}</div>
-          <h3 className={`text-xl font-semibold capitalize ${long ? "text-[#3DDC97]" : "text-[#fb7185]"}`}>{position.side || "position"}</h3>
+          <div className="text-[12px] tracking-[0.12em] text-[#f5d547] uppercase">{position.symbol}</div>
+          <h3 className={`text-base font-semibold capitalize ${long ? "text-[#3ddc97]" : "text-[#fb7185]"}`}>{position.side || "position"}</h3>
         </div>
-        <div className={`font-mono text-xl break-words tabular-nums ${toneClass(position.unrealizedPnl)}`}>{formatUsd(position.unrealizedPnl)}</div>
+        <div className={`text-base font-semibold break-words tabular-nums ${toneClass(position.unrealizedPnl)}`}>{formatUsd(position.unrealizedPnl)}</div>
       </div>
-      <dl className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
+      <dl className="mt-2 grid grid-cols-3 gap-1.5 text-[12px]">
         <Fact label="Entry" value={formatPrice(position.entryPrice)} />
         <Fact label="Mark" value={formatPrice(mark)} />
         <Fact label="Size" value={position.size == null ? "—" : String(position.size)} />
@@ -61,8 +80,8 @@ function PositionCard({ position, chart, mark, chartId }: { position: AccountPos
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-[10px] tracking-[0.14em] text-[#b7b3d9] uppercase">{label}</dt>
-      <dd className="font-mono break-words tabular-nums">{value}</dd>
+      <dt className="text-[12px] tracking-[0.14em] text-[#b7b3d9] uppercase">{label}</dt>
+      <dd className="break-words tabular-nums">{value}</dd>
     </div>
   );
 }
@@ -94,15 +113,15 @@ function PriceChart({ chart, entry, liq, mark, chartId }: { chart: PositionChart
     { value: chart.resistance, color: "#ec4899", name: "resistance" },
   ];
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="mt-3 h-40 w-full" role="img" aria-label="5 minute price">
+    <svg viewBox={`0 0 ${width} ${height}`} className="mt-2 h-36 w-full" role="img" aria-label="5 minute price">
       <defs>
         <linearGradient id={`glow-${chartId}`} x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.35" />
-          <stop offset="100%" stopColor="#22d3ee" stopOpacity="0" />
+          <stop offset="0%" stopColor="#f5d547" stopOpacity="0.35" />
+          <stop offset="100%" stopColor="#f5d547" stopOpacity="0" />
         </linearGradient>
       </defs>
       <path d={area} fill={`url(#glow-${chartId})`} />
-      <path d={line} fill="none" stroke="#e0f2fe" strokeWidth="2" />
+      <path d={line} fill="none" stroke="#f5d547" strokeWidth="2" />
       {guides.map((guide) =>
         guide.value == null ? null : (
           <line key={guide.name} x1={pad.l} x2={width - pad.r} y1={yAt(guide.value)} y2={yAt(guide.value)} stroke={guide.color} strokeDasharray="4 4" strokeWidth="1.25" />
@@ -130,8 +149,8 @@ function RsiGauge({ value }: { value: number | null }) {
         />
       </svg>
       <div>
-        <div className="text-[10px] tracking-[0.14em] text-[#b7b3d9] uppercase">RSI</div>
-        <div className="font-mono text-lg tabular-nums">{value == null ? "—" : value.toFixed(1)}</div>
+        <div className="text-[12px] tracking-[0.14em] text-[#b7b3d9] uppercase">RSI</div>
+        <div className="text-base tabular-nums">{value == null ? "—" : value.toFixed(1)}</div>
       </div>
     </div>
   );

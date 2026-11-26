@@ -29,7 +29,7 @@ const TYPE_LABEL: Record<ActivityItem["type"], string> = {
   levels: "Levels",
 };
 
-export function ActivityStream({ items, chatRelay, onRefresh }: { items: ActivityItem[]; chatRelay: boolean; onRefresh: () => void }) {
+export function ActivityStream({ items, chatRelay, onRefresh, query = "" }: { items: ActivityItem[]; chatRelay: boolean; onRefresh: () => void; query?: string }) {
   const router = useRouter();
   const [filter, setFilter] = useState<ActivityFilter>("all");
   const [baseline, setBaseline] = useState<Set<string> | null>(null);
@@ -42,7 +42,8 @@ export function ActivityStream({ items, chatRelay, onRefresh }: { items: Activit
   const [sheetOpen, setSheetOpen] = useState(false);
   const asideRef = useRef<HTMLElement>(null);
   if (baseline == null) setBaseline(new Set(items.map((item) => item.id)));
-  const visible = items.filter((item) => activityMatches(item, filter));
+  const needle = query.trim().toLowerCase();
+  const visible = items.filter((item) => activityMatches(item, filter) && (!needle || `${item.title} ${item.body ?? ""} ${item.trade?.coin ?? ""} ${item.source}`.toLowerCase().includes(needle)));
   const fresh = new Set(baseline == null ? [] : items.filter((item) => !baseline.has(item.id)).map((item) => item.id));
 
   async function send() {
@@ -111,12 +112,12 @@ export function ActivityStream({ items, chatRelay, onRefresh }: { items: Activit
   }, []);
 
   return (
-    <aside ref={asideRef} className={`fixed z-40 flex flex-col gap-2 inset-x-0 bottom-0 overflow-hidden pt-2 ps-[max(0.5rem,env(safe-area-inset-left))] pe-[max(0.5rem,env(safe-area-inset-right))] pb-2 md:inset-x-auto md:top-4 md:right-4 md:bottom-4 md:max-h-none md:overflow-visible md:p-0 md:w-[380px] ${sheetOpen ? "max-md:max-h-[min(78vh,640px)]" : ""}`}>
-      <div className={`${sheetOpen && mobileTab === "activity" ? "flex max-md:min-h-0 max-md:flex-1" : "hidden"} min-h-0 flex-col md:flex ${activityOpen ? "md:h-[55%] md:min-h-0" : ""}`}>
+    <aside id="activity" ref={asideRef} className={`fixed z-40 flex flex-col gap-2 inset-x-0 bottom-0 overflow-hidden pt-2 ps-[max(0.5rem,env(safe-area-inset-left))] pe-[max(0.5rem,env(safe-area-inset-right))] pb-2 md:static md:z-0 md:mt-2 md:grid md:w-full md:grid-cols-2 md:gap-2 md:overflow-visible md:p-0 ${sheetOpen ? "max-md:max-h-[min(70vh,560px)]" : ""}`}>
+      <div className={`${sheetOpen && mobileTab === "activity" ? "flex max-md:min-h-0 max-md:flex-1" : "hidden"} min-h-0 flex-col md:flex`}>
         {activityOpen ? (
-          <section className="surface flex min-h-0 flex-1 flex-col border-[#a855f7]/40 p-3 shadow-[0_16px_50px_rgba(8,10,30,0.55)]">
+          <section className="surface flex min-h-0 flex-1 flex-col p-2.5 md:max-h-72">
             <div className="mb-2 flex items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold tracking-[0.14em] text-[#c4b5fd] uppercase">Activity</h2>
+              <h2 className="text-[12px] font-semibold tracking-[0.14em] text-[#f5d547] uppercase">Activity</h2>
               <button
                 type="button"
                 aria-expanded={true}
@@ -124,7 +125,7 @@ export function ActivityStream({ items, chatRelay, onRefresh }: { items: Activit
                   setActivityOpen(false);
                   remember("mission-activity-open", false);
                 }}
-                className="min-h-11 rounded-full border border-[#2e3a66] px-3 text-xs text-[#b7b3d9] md:min-h-0 md:px-2 md:py-0.5"
+                className="min-h-11 rounded-full border border-[#2c2d33] px-3 text-[12px] text-[#9a9aa3] md:min-h-0 md:px-2 md:py-0.5"
               >
                 Hide
               </button>
@@ -136,8 +137,8 @@ export function ActivityStream({ items, chatRelay, onRefresh }: { items: Activit
                   type="button"
                   aria-pressed={filter === item.id}
                   onClick={() => setFilter(item.id)}
-                  className={`min-h-11 rounded-full border px-3 text-sm md:min-h-0 md:py-1 ${
-                    filter === item.id ? "border-[#a855f7] text-[#c4b5fd]" : "border-[#2e3a66] text-[#b7b3d9] hover:text-[#f8f5ff]"
+                  className={`min-h-11 rounded-full border px-2.5 text-[12px] md:min-h-0 md:py-0.5 ${
+                    filter === item.id ? "border-[#f5d547] text-[#f5d547]" : "border-[#2c2d33] text-[#9a9aa3] hover:text-[#f4f4f5]"
                   }`}
                 >
                   {item.label}
@@ -145,27 +146,27 @@ export function ActivityStream({ items, chatRelay, onRefresh }: { items: Activit
               ))}
             </div>
             {visible.length === 0 ? (
-              <p className="mt-3 text-sm text-[#b7b3d9]">{emptyCopy(filter)}</p>
+              <p className="mt-2 text-[12px] text-[#9a9aa3]">{emptyCopy(filter)}</p>
             ) : (
-              <div className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pr-1 max-md:max-h-[calc(78vh-12rem)]">
+              <div className="mt-2 min-h-0 flex-1 space-y-1.5 overflow-y-auto overscroll-contain pr-1 max-md:max-h-[calc(70vh-11rem)]">
                 {visible.map((item) => {
                   const mine = item.source === "you";
                   return (
-                    <article key={item.id} className={`rounded-2xl border border-[#2e3a66] px-4 py-3 ${mine ? "ml-auto w-fit max-w-[85%]" : ""} ${fresh.has(item.id) ? "tape-in" : ""}`}>
+                    <article key={item.id} className={`rounded-xl border border-[#2c2d33] px-2.5 py-2 ${mine ? "ml-auto w-fit max-w-[85%]" : ""} ${fresh.has(item.id) ? "tape-in" : ""}`}>
                       <div className="flex flex-wrap items-baseline justify-between gap-2">
                         <div className="flex items-center gap-2 text-xs">
-                          <span className="tracking-[0.14em] text-[#c4b5fd] uppercase">{sourceLabel(item.source)}</span>
-                          <span className="text-[#b7b3d9]">{TYPE_LABEL[item.type]}</span>
+                          <span className="tracking-[0.12em] text-[#f5d547] uppercase">{sourceLabel(item.source)}</span>
+                          <span className="text-[#9a9aa3]">{TYPE_LABEL[item.type]}</span>
                         </div>
-                        <time className="text-xs text-[#b7b3d9]" dateTime={new Date(item.ts).toISOString()}>
+                        <time className="text-[12px] text-[#9a9aa3]" dateTime={new Date(item.ts).toISOString()}>
                           {formatSofiaWhen(item.ts)} Sofia
                         </time>
                       </div>
                       {item.title !== sourceLabel(item.source) && <h3 className="mt-1 font-medium">{item.title}</h3>}
-                      {item.body && <p className="mt-1 text-sm whitespace-pre-wrap text-[#ddd6fe]">{item.body}</p>}
-                      {waitingForReply(items, item) && <p className="mt-2 text-xs text-[#b7b3d9]">sent, waiting for reply…</p>}
+                      {item.body && <p className="mt-1 text-[12px] whitespace-pre-wrap text-[#e4e4e7]">{item.body}</p>}
+                      {waitingForReply(items, item) && <p className="mt-1 text-[12px] text-[#9a9aa3]">sent, waiting for reply…</p>}
                       {item.trade && (
-                        <p className="mt-2 font-mono text-xs break-words text-[#b7b3d9]">
+                        <p className="mt-1 text-[12px] break-words text-[#9a9aa3] tabular-nums">
                           {item.trade.coin} {item.trade.side} {formatLeverage(item.trade.leverage)} · size {formatQty(item.trade.size)} · entry{" "}
                           {formatPrice(item.trade.entry)}
                           {item.trade.exit != null ? ` · exit ${formatPrice(item.trade.exit)}` : ""}
@@ -188,7 +189,7 @@ export function ActivityStream({ items, chatRelay, onRefresh }: { items: Activit
               setActivityOpen(true);
               remember("mission-activity-open", true);
             }}
-            className="min-h-11 self-end rounded-full bg-gradient-to-r from-[#a855f7] to-[#ec4899] px-4 text-sm font-medium text-white md:min-h-0 md:py-2"
+            className="min-h-11 self-end rounded-full bg-[#f5d547] px-3 text-[13px] font-semibold text-[#1a1400] md:min-h-0 md:py-1.5"
           >
             Activity
           </button>
@@ -211,14 +212,14 @@ export function ActivityStream({ items, chatRelay, onRefresh }: { items: Activit
         />
       </div>
       <div className="surface flex shrink-0 gap-1 p-1 pb-[max(0.25rem,env(safe-area-inset-bottom))] md:hidden" role="tablist" aria-label="Dock">
-        <button type="button" role="tab" aria-selected={sheetOpen && mobileTab === "activity"} aria-expanded={sheetOpen && mobileTab === "activity"} onClick={() => selectTab("activity")} className={`min-h-11 flex-1 rounded-full px-3 text-sm ${sheetOpen && mobileTab === "activity" ? "bg-[#a855f7]/20 text-[#c4b5fd]" : "text-[#b7b3d9]"}`}>
+        <button type="button" role="tab" aria-selected={sheetOpen && mobileTab === "activity"} aria-expanded={sheetOpen && mobileTab === "activity"} onClick={() => selectTab("activity")} className={`min-h-11 flex-1 rounded-full px-3 text-[13px] ${sheetOpen && mobileTab === "activity" ? "bg-[#f5d547] text-[#1a1400]" : "text-[#9a9aa3]"}`}>
           Activity
         </button>
-        <button type="button" role="tab" aria-selected={sheetOpen && mobileTab === "chat"} aria-expanded={sheetOpen && mobileTab === "chat"} onClick={() => selectTab("chat")} className={`min-h-11 flex-1 rounded-full px-3 text-sm ${sheetOpen && mobileTab === "chat" ? "bg-[#a855f7]/20 text-[#c4b5fd]" : "text-[#b7b3d9]"}`}>
+        <button type="button" role="tab" aria-selected={sheetOpen && mobileTab === "chat"} aria-expanded={sheetOpen && mobileTab === "chat"} onClick={() => selectTab("chat")} className={`min-h-11 flex-1 rounded-full px-3 text-[13px] ${sheetOpen && mobileTab === "chat" ? "bg-[#f5d547] text-[#1a1400]" : "text-[#9a9aa3]"}`}>
           Chat
         </button>
         {sheetOpen && (
-          <button type="button" onClick={() => setSheetOpen(false)} className="min-h-11 rounded-full px-3 text-sm text-[#b7b3d9]">
+          <button type="button" onClick={() => setSheetOpen(false)} className="min-h-11 rounded-full px-3 text-[13px] text-[#9a9aa3]">
             Close
           </button>
         )}
@@ -257,36 +258,36 @@ function ChatDock({
 
   if (!open) {
     return (
-      <button type="button" onClick={() => onOpen(true)} className="min-h-11 self-end rounded-full bg-gradient-to-r from-[#a855f7] to-[#ec4899] px-4 text-sm font-medium text-white md:min-h-0 md:py-2" aria-expanded={false}>
+      <button type="button" onClick={() => onOpen(true)} className="min-h-11 self-end rounded-full bg-[#f5d547] px-3 text-[13px] font-semibold text-[#1a1400] md:min-h-0 md:py-1.5" aria-expanded={false}>
         Paperboy
       </button>
     );
   }
 
   return (
-    <div className="surface flex min-h-0 flex-1 flex-col border-[#a855f7]/40 p-3 shadow-[0_16px_50px_rgba(8,10,30,0.55)]">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold tracking-[0.14em] text-[#c4b5fd] uppercase">Paperboy</h2>
-        <button type="button" onClick={() => onOpen(false)} className="min-h-11 rounded-full border border-[#2e3a66] px-3 text-xs text-[#b7b3d9] md:min-h-0 md:px-2 md:py-0.5" aria-expanded={true}>
+    <div className="surface flex min-h-0 flex-1 flex-col p-2.5 md:max-h-72">
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <h2 className="text-[12px] font-semibold tracking-[0.14em] text-[#f5d547] uppercase">Paperboy</h2>
+        <button type="button" onClick={() => onOpen(false)} className="min-h-11 rounded-full border border-[#2c2d33] px-3 text-[12px] text-[#9a9aa3] md:min-h-0 md:px-2 md:py-0.5" aria-expanded={true}>
           Hide
         </button>
       </div>
-          <div ref={scroller} className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pr-1 max-md:max-h-[calc(78vh-16rem)] md:max-h-none">
+          <div ref={scroller} className="min-h-0 flex-1 space-y-1.5 overflow-y-auto overscroll-contain pr-1 max-md:max-h-[calc(70vh-14rem)]">
             {thread.length === 0 ? (
-              <p className="text-sm text-[#b7b3d9]">No messages yet.</p>
+              <p className="text-[12px] text-[#9a9aa3]">No messages yet.</p>
             ) : (
               thread.map((item) => {
                 const mine = item.source === "you";
                 return (
-                  <article key={item.id} className={`rounded-2xl border border-[#2e3a66] px-3 py-2 ${mine ? "ml-auto w-fit max-w-[90%]" : ""}`}>
-                    <div className="flex items-baseline justify-between gap-2 text-xs">
-                      <span className="tracking-[0.14em] text-[#c4b5fd] uppercase">{sourceLabel(item.source)}</span>
-                      <time className="text-[#b7b3d9]" dateTime={new Date(item.ts).toISOString()}>
+                  <article key={item.id} className={`rounded-xl border border-[#2c2d33] px-2.5 py-1.5 ${mine ? "ml-auto w-fit max-w-[90%]" : ""}`}>
+                    <div className="flex items-baseline justify-between gap-2 text-[12px]">
+                      <span className="tracking-[0.12em] text-[#f5d547] uppercase">{sourceLabel(item.source)}</span>
+                      <time className="text-[#9a9aa3]" dateTime={new Date(item.ts).toISOString()}>
                         {formatSofiaWhen(item.ts)}
                       </time>
                     </div>
-                    {item.body && <p className="mt-1 text-sm whitespace-pre-wrap text-[#ddd6fe]">{item.body}</p>}
-                    {waitingForReply(items, item) && <p className="mt-1 text-xs text-[#b7b3d9]">sent, waiting for reply…</p>}
+                    {item.body && <p className="mt-1 text-[12px] whitespace-pre-wrap text-[#e4e4e7]">{item.body}</p>}
+                    {waitingForReply(items, item) && <p className="mt-1 text-[12px] text-[#9a9aa3]">sent, waiting for reply…</p>}
                   </article>
                 );
               })
@@ -305,14 +306,14 @@ function ChatDock({
               maxLength={2000}
               placeholder="Message Paperboy"
               aria-label="Message Paperboy"
-              className="h-11 min-w-0 flex-1 rounded-full border border-[#2e3a66] bg-[#141a2e] px-3 text-base text-[#f8f5ff] outline-none placeholder:text-[#b7b3d9]/70 focus:border-[#a855f7] md:h-9 md:text-sm"
+              className="h-11 min-w-0 flex-1 rounded-full border border-[#2c2d33] bg-[#070709] px-3 text-base text-[#f4f4f5] outline-none placeholder:text-[#9a9aa3] focus:border-[#f5d547] md:h-8 md:text-[13px]"
             />
             <Button type="submit" size="sm" className="min-h-11 px-4 md:min-h-0 md:px-3" disabled={sending || !draft.trim()}>
               Send
             </Button>
           </form>
-          {!chatRelay && <p className="mt-2 text-sm text-[#b7b3d9]">Chat relay not configured</p>}
-          {sendError && <p className="mt-2 text-sm text-[#f0abfc]">{sendError}</p>}
+          {!chatRelay && <p className="mt-1.5 text-[12px] text-[#9a9aa3]">Chat relay not configured</p>}
+          {sendError && <p className="mt-1.5 text-[12px] text-[#f5d547]">{sendError}</p>}
     </div>
   );
 }

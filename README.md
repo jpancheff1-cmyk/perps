@@ -49,7 +49,7 @@ Force stop is separate. It uses `KRAKEN_FUTURES_TRADE_API_KEY` and only `POST /a
 
 ## What the page shows
 
-1. Kraken Pro: futures portfolio, USDC, free margin, unrealized PnL, a futures/spot/Earn donut, and spot balances when the spot key is set. Open positions, when any exist, get a 5-minute chart, RSI, and liquidation levels. The server refreshes this about every 30 seconds. The browser reads the cache from `GET /api/state` about every 5 seconds.
+1. Kraken Pro, in a compact sidebar layout: futures portfolio, USDC, free margin, unrealized PnL, a futures/spot/Earn donut, and spot balances when the spot key is set. Open positions, when any exist, get a 5-minute chart, RSI, and liquidation levels. The server refreshes this about every 30 seconds. The browser reads the cache from `GET /api/state` about every 5 seconds.
 2. Open futures trades: live positions and pending orders, with stops and targets from open orders. An empty book says `No open futures trades`. Ingested trade history is still stored for the tape and the 1UP.
 3. Activity: posts from Paperboy (briefs, backtests, status, replies) and Trading.exe (orders, fills, stop or target moves, closes), plus a chat box. Filter chips: All, Paperboy, Trading.exe, Trades, Chat.
 4. Performance: a button the same size as FORCE STOP sits beside it and opens the return, drawdown, and cumulative PnL panel. Live reads closed Kraken Futures round trips. Backtest reads the dataset pushed to `POST /api/performance`.

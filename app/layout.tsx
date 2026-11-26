@@ -1,21 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import { Roboto, Roboto_Mono } from "next/font/google";
+import { Roboto } from "next/font/google";
 import "./globals.css";
 
 const roboto = Roboto({
-  variable: "--font-roboto",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "900"],
   display: "swap",
-  fallback: ["system-ui", "sans-serif"],
-});
-
-const robotoMono = Roboto_Mono({
-  variable: "--font-roboto-mono",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  display: "swap",
-  fallback: ["ui-monospace", "monospace"],
 });
 
 export const metadata: Metadata = {
@@ -32,7 +22,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${roboto.variable} ${robotoMono.variable} h-full antialiased`}>
+    <html lang="en" className={`${roboto.className} h-full antialiased`}>
       <body className="min-h-full">{children}</body>
     </html>
   );

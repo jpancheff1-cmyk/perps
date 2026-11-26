@@ -81,7 +81,7 @@ export function CoinField() {
       context!.translate(logo.x * width, logo.y * height);
       context!.rotate(logo.rot);
       context!.scale(radius, radius);
-      context!.globalAlpha = 0.38 + depth * 0.62;
+      context!.globalAlpha = 0.12 + depth * 0.16;
       context!.fillStyle = "#2775CA";
       context!.fill(circle);
       context!.strokeStyle = "#ffffff";

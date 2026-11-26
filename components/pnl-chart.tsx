@@ -70,7 +70,7 @@ export function PnlChart({ points }: { points: CurvePoint[] }) {
         {yTicks.map((tick) => (
           <g key={tick}>
             <line x1={pad.left} x2={pad.left + plotW} y1={yAt(tick)} y2={yAt(tick)} stroke="#2e3a66" strokeWidth="1" />
-            <text x={pad.left + plotW + 8} y={yAt(tick) + 4} fill="#8b879f" fontSize="11" fontFamily="var(--font-roboto-mono), ui-monospace, monospace">
+            <text x={pad.left + plotW + 8} y={yAt(tick) + 4} fill="#8b879f" fontSize="12">
               {formatAxis(tick)}
             </text>
           </g>
@@ -89,7 +89,6 @@ export function PnlChart({ points }: { points: CurvePoint[] }) {
           fill={positive ? "#06281c" : "#2a0610"}
           fontSize="12"
           fontWeight="700"
-          fontFamily="var(--font-roboto-mono), ui-monospace, monospace"
         >
           {label}
         </text>
@@ -103,8 +102,7 @@ export function PnlChart({ points }: { points: CurvePoint[] }) {
               y={height - 12}
               textAnchor={edge}
               fill="#8b879f"
-              fontSize="11"
-              fontFamily="var(--font-roboto), system-ui, sans-serif"
+              fontSize="12"
             >
               {formatAxisDate(ts)}
             </text>
