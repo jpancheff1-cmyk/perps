@@ -30,6 +30,9 @@ export function Desk() {
   const [clock, setClock] = useState("");
   const [performanceOpen, setPerformanceOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [section, setSection] = useState("top");
+  const [period, setPeriod] = useState<PeriodId>("day");
+  const [symbol, setSymbol] = useState<string | null>(null);
 
   async function refresh() {
     try {
@@ -103,29 +106,29 @@ export function Desk() {
         </div>
         <nav className="flex flex-1 flex-col gap-1" aria-label="Sections">
           {NAV.map((item) => (
-            <a key={item.id} href={`#${item.id}`} className="rounded-xl px-3 py-2 text-[13px] text-[#c6c6cc] hover:bg-[#17181c] hover:text-[#f5d547]">
+            <a key={item.id} href={`#${item.id}`} aria-current={section === item.id ? "true" : undefined} onClick={() => setSection(item.id)} className={`rounded-xl px-3 py-2 text-[15px] transition ${section === item.id ? "bg-[#f5d547]/15 text-[#f5d547]" : "text-[#c6c6cc] hover:bg-[#17181c] hover:text-[#f5d547]"}`}>
               {item.label}
             </a>
           ))}
         </nav>
-        <button type="button" onClick={() => void lock()} className="mt-3 rounded-xl px-3 py-2 text-left text-[13px] text-[#c6c6cc] hover:bg-[#17181c] hover:text-[#f5d547]">
+        <button type="button" onClick={() => void lock()} className="mt-3 rounded-xl px-3 py-2 text-left text-[15px] text-[#c6c6cc] transition hover:bg-[#17181c] hover:text-[#f5d547]">
           Lock
         </button>
       </aside>
       <div id="top" className="relative z-10 min-w-0 px-3 pt-3 pb-[calc(4.25rem+env(safe-area-inset-bottom))] md:px-4 md:pt-3 md:pb-4">
         <header className="mb-2 flex flex-wrap items-center gap-2">
-          <h1 className="text-lg font-semibold text-[#f5d547]">Dashboard</h1>
+          <h1 className="text-xl font-semibold text-[#f5d547]">Dashboard</h1>
           <div className="ml-auto flex flex-wrap items-center gap-1.5">
             <nav className="flex gap-1 md:hidden" aria-label="Sections">
               {NAV.map((item) => (
-                <a key={item.id} href={`#${item.id}`} className="rounded-full border border-[#2c2d33] px-2 py-1 text-[12px] text-[#c6c6cc]">
+                <a key={item.id} href={`#${item.id}`} aria-current={section === item.id ? "true" : undefined} onClick={() => setSection(item.id)} className={`rounded-full border px-2.5 py-1 text-sm transition ${section === item.id ? "border-[#f5d547] bg-[#f5d547]/15 text-[#f5d547]" : "border-[#2c2d33] text-[#c6c6cc] hover:border-[#f5d547]"}`}>
                   {item.label}
                 </a>
               ))}
             </nav>
             {state && <OneUp items={state.items} trades={state.trades} />}
-            <span className="rounded-full border border-[#3a3b42] bg-[#17181c] px-2.5 py-1 text-[12px] text-[#f5d547]">{clock || "—"} Sofia</span>
-            <button type="button" onClick={() => void lock()} className="rounded-full border border-[#3a3b42] px-2.5 py-1 text-[12px] text-[#f4f4f5] md:hidden">
+            <span className="rounded-full border border-[#3a3b42] bg-[#17181c] px-2.5 py-1 text-sm text-[#f5d547]">{clock || "—"} Sofia</span>
+            <button type="button" onClick={() => void lock()} className="rounded-full border border-[#3a3b42] px-2.5 py-1 text-sm text-[#f4f4f5] transition hover:border-[#f5d547] hover:text-[#f5d547] md:hidden">
               Lock
             </button>
           </div>
@@ -136,7 +139,7 @@ export function Desk() {
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search symbols, orders, activity"
-            className="h-9 w-full rounded-full border border-[#2c2d33] bg-[#121316] px-3 text-[13px] text-[#f4f4f5] outline-none placeholder:text-[#9a9aa3] focus:border-[#f5d547]"
+            className="h-10 w-full rounded-full border border-[#2c2d33] bg-[#121316] px-3 text-[15px] text-[#f4f4f5] outline-none transition placeholder:text-[#9a9aa3] focus:border-[#f5d547]"
           />
         </label>
         {error && <p className="mb-2 text-[13px] text-[#f5d547]">The desk could not refresh. Trying again.</p>}
@@ -148,7 +151,7 @@ export function Desk() {
               <button
                 type="button"
                 onClick={() => setPerformanceOpen(true)}
-                className="grid min-h-14 w-full place-items-center rounded-2xl bg-[#f5d547] px-2 text-center text-base font-black leading-tight tracking-wide text-[#1a1400] select-none sm:px-3 sm:text-lg"
+                className="grid min-h-14 w-full place-items-center rounded-2xl bg-[#f5d547] px-2 text-center text-[17px] font-black leading-tight tracking-wide text-[#1a1400] transition select-none hover:brightness-110 active:brightness-95 sm:px-3 sm:text-[19px]"
               >
                 Performance
               </button>
@@ -158,21 +161,38 @@ export function Desk() {
         <section id="balances" className="surface mt-2 px-3 py-3 sm:px-4">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <div className="text-[12px] tracking-[0.14em] text-[#9a9aa3] uppercase">Total balance</div>
-              <div className="text-[2rem] leading-none font-semibold tracking-tight text-[#f4f4f5] sm:text-[2.4rem]">{total == null ? "—" : formatUsd(total).replace(/^\+/, "")}</div>
-              <p className="mt-1 text-[12px] text-[#9a9aa3]">Futures, spot, and Earn when those reads are connected. No invented fill.</p>
+              <div className="text-sm tracking-[0.14em] text-[#9a9aa3] uppercase">Total balance</div>
+              <div className="num-pop text-[2.35rem] leading-none font-semibold tracking-tight text-[#f4f4f5] sm:text-[2.75rem]" key={total ?? "empty"}>{total == null ? "—" : formatUsd(total).replace(/^\+/, "")}</div>
+              <p className="mt-1 text-sm text-[#9a9aa3]">Futures, spot, and Earn when those reads are connected.</p>
             </div>
-            <div className="flex gap-3 text-[12px]">
-              <Period label="Today" value={periods.day} />
-              <Period label="7 Days" value={periods.week} />
-              <Period label="30 Days" value={periods.month} />
+            <div className="flex gap-1.5 text-sm" role="group" aria-label="Realized window">
+              <Period id="day" label="Today" value={periods.day} active={period === "day"} onPick={setPeriod} />
+              <Period id="week" label="7 Days" value={periods.week} active={period === "week"} onPick={setPeriod} />
+              <Period id="month" label="30 Days" value={periods.month} active={period === "month"} onPick={setPeriod} />
             </div>
           </div>
         </section>
-        {state ? <KrakenStrip account={state.account} spot={state.spot} earn={state.earn} spotOrders={state.spotOrders} charts={state.charts} query={query} /> : <Loading label="Loading the account…" />}
-        <div className="mt-2 grid items-start gap-2 xl:grid-cols-[minmax(240px,320px)_minmax(0,1fr)]">
+        {state ? (
+          <KrakenStrip
+            account={state.account}
+            spot={state.spot}
+            earn={state.earn}
+            spotOrders={state.spotOrders}
+            charts={state.charts}
+            query={query}
+            selected={symbol}
+            onSelect={(next) => {
+              setSymbol(next);
+              setSection("chart");
+              document.getElementById("chart")?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "nearest" });
+            }}
+          />
+        ) : (
+          <Loading label="Loading the account…" />
+        )}
+        <div className="mt-2 grid items-start gap-2 xl:grid-cols-[minmax(260px,340px)_minmax(0,1fr)]">
           {state ? <OpenFuturesTrades account={state.account} query={query} /> : <Loading label="Loading trades…" />}
-          <div id="chart">{state ? <PositionBoard positions={state.account.positions} charts={state.charts} query={query} /> : null}</div>
+          <div id="chart">{state ? <PositionBoard positions={state.account.positions} charts={state.charts} query={query} selectedSymbol={symbol} onSelectSymbol={setSymbol} /> : null}</div>
         </div>
         {state ? <ActivityStream items={state.items} chatRelay={state.chatRelay} onRefresh={() => void refresh()} query={query} /> : <Loading label="Loading activity…" />}
       </div>
@@ -181,13 +201,15 @@ export function Desk() {
   );
 }
 
-function Period({ label, value }: { label: string; value: number | null }) {
+type PeriodId = "day" | "week" | "month";
+
+function Period({ id, label, value, active, onPick }: { id: PeriodId; label: string; value: number | null; active: boolean; onPick: (id: PeriodId) => void }) {
   const tone = value == null || value === 0 ? "text-[#9a9aa3]" : value > 0 ? "text-[#3ddc97]" : "text-[#fb7185]";
   return (
-    <div className="min-w-[4.5rem]">
-      <div className="text-[12px] text-[#9a9aa3]">{label}</div>
-      <div className={`font-semibold ${tone}`}>{value == null ? "—" : formatUsd(value)}</div>
-    </div>
+    <button type="button" aria-pressed={active} onClick={() => onPick(id)} className={`min-w-[4.75rem] rounded-xl border px-2 py-1 text-left transition ${active ? "border-[#f5d547] bg-[#f5d547]/10" : "border-transparent hover:border-[#3a3b42]"}`}>
+      <div className="text-sm text-[#9a9aa3]">{label}</div>
+      <div className={`num-pop text-[15px] font-semibold ${tone}`} key={value ?? "empty"}>{value == null ? "—" : formatUsd(value)}</div>
+    </button>
   );
 }
 
@@ -217,7 +239,7 @@ async function loadDesk(): Promise<{ status: number; payload: DeskPayload | null
 function Loading({ label }: { label: string }) {
   return (
     <section className="surface mt-2 px-3 py-3">
-      <p className="text-[13px] text-[#9a9aa3]">{label}</p>
+      <p className="text-[15px] text-[#9a9aa3]">{label}</p>
     </section>
   );
 }

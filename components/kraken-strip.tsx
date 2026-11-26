@@ -1,7 +1,6 @@
 "use client";
 
 import { formatCompact, formatPrice, formatUsd } from "@/lib/format";
-import { formatSofiaWhen } from "@/lib/time";
 import type { AccountPayload, EarnPayload, PositionChart, SpotOrdersPayload, SpotPayload } from "@/lib/types";
 
 export function KrakenStrip({
@@ -11,6 +10,8 @@ export function KrakenStrip({
   spotOrders,
   charts,
   query,
+  selected,
+  onSelect,
 }: {
   account: AccountPayload;
   spot: SpotPayload;
@@ -18,6 +19,8 @@ export function KrakenStrip({
   spotOrders: SpotOrdersPayload;
   charts: PositionChart[];
   query: string;
+  selected: string | null;
+  onSelect: (symbol: string) => void;
 }) {
   const futures = Math.max(0, account.portfolioValue ?? 0);
   const spotUsd = Math.max(0, spot.totalUsd ?? 0);
@@ -34,6 +37,8 @@ export function KrakenStrip({
       hint: account.connected ? "Read only" : "",
       tone: account.connected && (account.portfolioValue ?? 0) < 0 ? "down" : account.connected ? "up" : "flat",
       points: [],
+      symbol: positions[0]?.symbol ?? "",
+      swatch: "#f5d547",
     },
     {
       title: "USDC",
@@ -42,6 +47,8 @@ export function KrakenStrip({
       hint: account.connected ? "Wallet" : "",
       tone: "flat",
       points: [],
+      symbol: "",
+      swatch: "#2775ca",
     },
     {
       title: "Margin",
@@ -50,6 +57,8 @@ export function KrakenStrip({
       hint: account.connected ? "Available" : "",
       tone: "flat",
       points: [],
+      symbol: "",
+      swatch: "#22d3ee",
     },
     {
       title: "Unrealized",
@@ -58,6 +67,8 @@ export function KrakenStrip({
       hint: account.connected ? "Open P&L" : "",
       tone: !account.connected || account.unrealizedPnl == null || account.unrealizedPnl === 0 ? "flat" : account.unrealizedPnl > 0 ? "up" : "down",
       points: [],
+      symbol: "",
+      swatch: "#3ddc97",
     },
   ];
   for (const position of positions) {
@@ -71,28 +82,39 @@ export function KrakenStrip({
       hint: `Size ${position.size ?? "—"}`,
       tone: pnl == null || pnl === 0 ? "flat" : pnl > 0 ? "up" : "down",
       points: closes,
+      symbol: position.symbol,
+      swatch: symbolColor(position.symbol),
     });
   }
 
   return (
     <section className="mt-2">
-      <p className="mb-1.5 text-[12px] text-[#9a9aa3]">Futures reads stay read-only. Spot and Earn use a separate query key. Nothing here places, edits, or moves funds.</p>
+      <p className="mb-1.5 text-sm text-[#9a9aa3]">Futures reads stay read-only. Spot and Earn use a separate query key. Nothing here places, edits, or moves funds.</p>
       <div className="flex gap-2 overflow-x-auto pb-1">
         {cards.map((card) => (
-          <article key={`${card.title}-${card.sub}`} className="surface w-[168px] shrink-0 px-2.5 py-2">
+          <button
+            key={`${card.title}-${card.sub}`}
+            type="button"
+            onClick={() => (card.symbol ? onSelect(card.symbol) : document.getElementById(card.title === "USDC" || card.title === "Margin" ? "wallet" : "chart")?.scrollIntoView({ block: "nearest" }))}
+            className={`lift surface w-[176px] shrink-0 px-2.5 py-2.5 text-left ${selected && card.symbol === selected ? "border-[#f5d547]" : ""}`}
+            style={{ backgroundImage: `linear-gradient(180deg, ${card.swatch}22, transparent 70%)` }}
+          >
             <div className="flex items-start justify-between gap-1">
-              <div className="min-w-0">
-                <div className="truncate text-[12px] text-[#c6c6cc]">{card.title}</div>
-                <div className="text-[12px] tracking-wide text-[#9a9aa3] uppercase">{card.sub}</div>
+              <div className="flex min-w-0 items-center gap-1.5">
+                <CoinBadge label={card.title} color={card.swatch} />
+                <div className="min-w-0">
+                  <div className="truncate text-sm text-[#f4f4f5]">{card.title}</div>
+                  <div className="text-sm tracking-wide text-[#9a9aa3] uppercase">{card.sub}</div>
+                </div>
               </div>
               <Arrow tone={card.tone} />
             </div>
-            <div className={`mt-1 truncate text-sm font-semibold tabular-nums ${card.value.startsWith("—") ? "text-[#9a9aa3]" : "text-[#f4f4f5]"}`}>{card.value}</div>
+            <div className={`num-pop mt-1 truncate text-base font-semibold tabular-nums ${card.value.startsWith("—") ? "text-[#9a9aa3]" : card.tone === "down" ? "text-[#fb7185]" : card.tone === "up" ? "text-[#3ddc97]" : "text-[#f4f4f5]"}`}>{card.value}</div>
             <div className="mt-1 flex items-end justify-between gap-1">
-              <Spark points={card.points} tone={card.tone} />
-              {card.hint ? <span className="text-[12px] text-[#9a9aa3]">{card.hint}</span> : null}
+              <Spark points={card.points} tone={card.tone} color={card.swatch} />
+              {card.hint ? <span className="text-sm text-[#9a9aa3]">{card.hint}</span> : null}
             </div>
-          </article>
+          </button>
         ))}
         <article className="surface flex w-[200px] shrink-0 items-center gap-2 px-2.5 py-2">
           <Donut
@@ -104,15 +126,15 @@ export function KrakenStrip({
       </div>
       <div id="wallet" className="mt-2 grid gap-2 lg:grid-cols-2">
         <div className="surface px-3 py-2.5">
-          <h3 className="text-[13px] font-semibold">Spot</h3>
+          <h3 className="text-[15px] font-semibold">Spot</h3>
           {!spot.connected ? (
-            <p className="mt-1 text-[12px] text-[#9a9aa3]">{spot.reason === "not_configured" ? "Connect spot key" : spot.message}</p>
+            <p className="mt-1 text-sm text-[#9a9aa3]">{spot.reason === "not_configured" ? "Connect spot key" : spot.message}</p>
           ) : (
             <>
               <div className="text-lg font-semibold tabular-nums">{formatUsd(spot.totalUsd).replace(/^\+/, "")}</div>
-              <ul className="mt-1.5 space-y-0.5 text-[12px]">
+              <ul className="mt-1.5 space-y-0.5 text-sm">
                 {assets.slice(0, 8).map((asset) => (
-                  <li key={asset.asset} className="flex items-baseline justify-between gap-2">
+                  <li key={asset.asset} className="flex items-baseline justify-between gap-2 rounded-lg px-1 py-0.5 transition hover:bg-[#2775ca]/10">
                     <span>{asset.asset}</span>
                     <span className="tabular-nums text-[#c6c6cc]">
                       {asset.balance} · {formatUsd(asset.usd)}
@@ -125,16 +147,16 @@ export function KrakenStrip({
           )}
         </div>
         <div className="surface px-3 py-2.5">
-          <h3 className="text-[13px] font-semibold text-[#f5d547]">Earn</h3>
+          <h3 className="text-[15px] font-semibold text-[#f5d547]">Earn</h3>
           {!earn.connected ? (
-            <p className="mt-1 text-[12px] text-[#9a9aa3]">{earn.reason === "not_configured" ? "Connect spot key" : earn.message}</p>
+            <p className="mt-1 text-sm text-[#9a9aa3]">{earn.reason === "not_configured" ? "Connect spot key" : earn.message}</p>
           ) : (
             <>
               <div className="text-lg font-semibold tabular-nums">{formatUsd(earn.totalUsd).replace(/^\+/, "")}</div>
-              <p className="mt-1 text-[12px] text-[#9a9aa3]">Rewarded {formatUsd(earn.rewardedUsd)}</p>
+              <p className="mt-1 text-sm text-[#9a9aa3]">Rewarded {formatUsd(earn.rewardedUsd)}</p>
             </>
           )}
-          {account.connected && <p className="mt-1 text-[12px] text-[#9a9aa3]">{account.positions.length} open futures {account.positions.length === 1 ? "position" : "positions"}</p>}
+          {account.connected && <p className="mt-1 text-sm text-[#9a9aa3]">{account.positions.length} open futures {account.positions.length === 1 ? "position" : "positions"}</p>}
         </div>
       </div>
       <SpotOrders orders={spotOrders} query={needle} />
@@ -143,7 +165,28 @@ export function KrakenStrip({
 }
 
 type Tone = "up" | "down" | "flat";
-type Card = { title: string; sub: string; value: string; hint: string; tone: Tone; points: number[] };
+type Card = { title: string; sub: string; value: string; hint: string; tone: Tone; points: number[]; symbol: string; swatch: string };
+
+function symbolColor(symbol: string) {
+  const key = symbol.toUpperCase();
+  if (key.includes("XBT") || key.includes("BTC")) return "#f7931a";
+  if (key.includes("ETH")) return "#627eea";
+  if (key.includes("SOL")) return "#14f195";
+  if (key.includes("LTC")) return "#345d9d";
+  if (key.includes("XRP")) return "#00aae4";
+  if (key.includes("DOGE")) return "#c2a633";
+  if (key.includes("USDC") || key.includes("USDT")) return "#2775ca";
+  return "#f5d547";
+}
+
+function CoinBadge({ label, color }: { label: string; color: string }) {
+  const letter = label.replace(/[^A-Za-z]/g, "").slice(0, 1) || "•";
+  return (
+    <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-sm font-bold text-[#070709]" style={{ background: color }} aria-hidden>
+      {letter}
+    </span>
+  );
+}
 
 function Arrow({ tone }: { tone: Tone }) {
   const color = tone === "up" ? "bg-[#3ddc97] text-[#06281c]" : tone === "down" ? "bg-[#fb7185] text-[#2a0610]" : "bg-[#2c2d33] text-[#9a9aa3]";
@@ -154,8 +197,8 @@ function Arrow({ tone }: { tone: Tone }) {
   );
 }
 
-function Spark({ points, tone }: { points: number[]; tone: Tone }) {
-  if (points.length < 2) return <span className="text-[12px] text-[#6d6d76]">No 5m</span>;
+function Spark({ points, tone, color }: { points: number[]; tone: Tone; color: string }) {
+  if (points.length < 2) return <span className="text-sm text-[#6d6d76]">No 5m</span>;
   const min = Math.min(...points);
   const max = Math.max(...points);
   const span = max - min || 1;
@@ -168,7 +211,7 @@ function Spark({ points, tone }: { points: number[]; tone: Tone }) {
     .join(" ");
   return (
     <svg viewBox="0 0 64 20" className="h-5 w-16" aria-hidden>
-      <path d={d} fill="none" stroke={tone === "down" ? "#fb7185" : "#3ddc97"} strokeWidth="1.6" />
+      <path d={d} fill="none" stroke={tone === "down" ? "#fb7185" : color} strokeWidth="1.8" />
     </svg>
   );
 }
@@ -179,17 +222,17 @@ function SpotOrders({ orders, query }: { orders: SpotOrdersPayload; query: strin
   return (
     <div className="surface mt-2 px-3 py-2.5">
       <div className="mb-1.5 flex items-center gap-2">
-        <h3 className="text-[13px] font-semibold">Open spot orders</h3>
-        <span className="rounded-full bg-[#f5d547]/15 px-1.5 text-[12px] text-[#f5d547]">{rows.length}</span>
+        <h3 className="text-[15px] font-semibold">Open spot orders</h3>
+        <span className="rounded-full bg-[#f5d547]/15 px-1.5 text-sm text-[#f5d547]">{rows.length}</span>
       </div>
       {!orders.connected ? (
-        <p className="text-[12px] text-[#9a9aa3]">{orders.message}</p>
+        <p className="text-sm text-[#9a9aa3]">{orders.message}</p>
       ) : rows.length === 0 ? (
-        <p className="text-[12px] text-[#9a9aa3]">{query ? "No matching spot orders" : "No open spot orders"}</p>
+        <p className="text-sm text-[#9a9aa3]">{query ? "No matching spot orders" : "No open spot orders"}</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[640px] text-left text-[12px]">
-            <thead className="text-[12px] tracking-wide text-[#9a9aa3] uppercase">
+          <table className="w-full min-w-[640px] text-left text-sm">
+            <thead className="text-sm tracking-wide text-[#9a9aa3] uppercase">
               <tr>
                 {["Pair", "Side", "Type", "Price", "Amount", "Filled", "Value", "Age"].map((label) => (
                   <th key={label} scope="col" className="px-1.5 py-1 font-medium">
@@ -202,7 +245,7 @@ function SpotOrders({ orders, query }: { orders: SpotOrdersPayload; query: strin
               {rows.map((order) => {
                 const filled = order.volume && order.filled != null ? (order.filled / order.volume) * 100 : null;
                 return (
-                  <tr key={order.id} className="border-t border-[#2c2d33]">
+                  <tr key={order.id} className="border-t border-[#2c2d33] transition hover:bg-[#f5d547]/10">
                     <td className="px-1.5 py-1 font-medium">{order.pair || "—"}</td>
                     <td className={`px-1.5 py-1 capitalize ${order.side === "buy" ? "text-[#3ddc97]" : order.side === "sell" ? "text-[#fb7185]" : "text-[#9a9aa3]"}`}>{order.side || "—"}</td>
                     <td className="px-1.5 py-1 capitalize text-[#9a9aa3]">{order.type || "—"}</td>
@@ -255,10 +298,14 @@ function Donut({ futures, spot, earn }: { futures: number | null; spot: number |
             const offset = circ * 0.25 - cursor;
             cursor += length;
             if ((slice.value ?? 0) <= 0) return null;
-            return <circle key={slice.name} cx="24" cy="24" r={radius} fill="none" stroke={slice.color} strokeWidth="6" strokeDasharray={dash} strokeDashoffset={offset} />;
+            return (
+              <circle key={slice.name} cx="24" cy="24" r={radius} fill="none" stroke={slice.color} strokeWidth="6" strokeDasharray={dash} strokeDashoffset={offset}>
+                <title>{`${slice.name}: ${slice.value == null ? "not connected" : formatUsd(slice.value)}`}</title>
+              </circle>
+            );
           })}
       </svg>
-      <div className="min-w-0 text-[12px] text-[#9a9aa3]">
+      <div className="min-w-0 text-sm text-[#9a9aa3]">
         <div className="text-[#f4f4f5]">{total > 0 ? formatCompact(total) : "—"}</div>
         {slices.map((slice) => (
           <div key={slice.name} className="truncate">

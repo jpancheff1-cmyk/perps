@@ -50,6 +50,33 @@ textarea {
   border-radius: 16px;
 }
 
+.lift {
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+}
+
+.lift:hover {
+  transform: translateY(-2px);
+  border-color: #f5d547;
+  box-shadow: 0 10px 24px rgba(245, 213, 71, 0.14);
+}
+
+.lift:active {
+  transform: translateY(0);
+}
+
+.num-pop {
+  animation: num-pop 280ms ease;
+}
+
+@keyframes num-pop {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .tape-in {
   animation: tape-in 480ms ease;
 }
@@ -97,11 +124,18 @@ textarea {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tape-in {
+  .tape-in,
+  .num-pop {
     animation: none;
   }
   .oneup {
     animation: oneup-fade 1.3s ease forwards;
+  }
+  .lift,
+  .lift:hover,
+  .lift:active {
+    transition: none;
+    transform: none;
   }
 }
 

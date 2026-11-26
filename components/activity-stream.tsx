@@ -117,7 +117,7 @@ export function ActivityStream({ items, chatRelay, onRefresh, query = "" }: { it
         {activityOpen ? (
           <section className="surface flex min-h-0 flex-1 flex-col p-2.5 md:max-h-72">
             <div className="mb-2 flex items-center justify-between gap-2">
-              <h2 className="text-[12px] font-semibold tracking-[0.14em] text-[#f5d547] uppercase">Activity</h2>
+              <h2 className="text-sm font-semibold tracking-[0.14em] text-[#f5d547] uppercase">Activity</h2>
               <button
                 type="button"
                 aria-expanded={true}
@@ -125,7 +125,7 @@ export function ActivityStream({ items, chatRelay, onRefresh, query = "" }: { it
                   setActivityOpen(false);
                   remember("mission-activity-open", false);
                 }}
-                className="min-h-11 rounded-full border border-[#2c2d33] px-3 text-[12px] text-[#9a9aa3] md:min-h-0 md:px-2 md:py-0.5"
+                className="min-h-11 rounded-full border border-[#2c2d33] px-3 text-sm text-[#9a9aa3] md:min-h-0 md:px-2 md:py-0.5"
               >
                 Hide
               </button>
@@ -137,7 +137,7 @@ export function ActivityStream({ items, chatRelay, onRefresh, query = "" }: { it
                   type="button"
                   aria-pressed={filter === item.id}
                   onClick={() => setFilter(item.id)}
-                  className={`min-h-11 rounded-full border px-2.5 text-[12px] md:min-h-0 md:py-0.5 ${
+                  className={`min-h-11 rounded-full border px-2.5 text-sm md:min-h-0 md:py-0.5 ${
                     filter === item.id ? "border-[#f5d547] text-[#f5d547]" : "border-[#2c2d33] text-[#9a9aa3] hover:text-[#f4f4f5]"
                   }`}
                 >
@@ -146,27 +146,27 @@ export function ActivityStream({ items, chatRelay, onRefresh, query = "" }: { it
               ))}
             </div>
             {visible.length === 0 ? (
-              <p className="mt-2 text-[12px] text-[#9a9aa3]">{emptyCopy(filter)}</p>
+              <p className="mt-2 text-sm text-[#9a9aa3]">{emptyCopy(filter)}</p>
             ) : (
               <div className="mt-2 min-h-0 flex-1 space-y-1.5 overflow-y-auto overscroll-contain pr-1 max-md:max-h-[calc(70vh-11rem)]">
                 {visible.map((item) => {
                   const mine = item.source === "you";
                   return (
-                    <article key={item.id} className={`rounded-xl border border-[#2c2d33] px-2.5 py-2 ${mine ? "ml-auto w-fit max-w-[85%]" : ""} ${fresh.has(item.id) ? "tape-in" : ""}`}>
+                    <article key={item.id} className={`rounded-xl border border-[#2c2d33] px-2.5 py-2 transition hover:border-[#f5d547]/60 ${mine ? "ml-auto w-fit max-w-[85%]" : ""} ${fresh.has(item.id) ? "tape-in" : ""}`}>
                       <div className="flex flex-wrap items-baseline justify-between gap-2">
                         <div className="flex items-center gap-2 text-xs">
                           <span className="tracking-[0.12em] text-[#f5d547] uppercase">{sourceLabel(item.source)}</span>
                           <span className="text-[#9a9aa3]">{TYPE_LABEL[item.type]}</span>
                         </div>
-                        <time className="text-[12px] text-[#9a9aa3]" dateTime={new Date(item.ts).toISOString()}>
+                        <time className="text-sm text-[#9a9aa3]" dateTime={new Date(item.ts).toISOString()}>
                           {formatSofiaWhen(item.ts)} Sofia
                         </time>
                       </div>
                       {item.title !== sourceLabel(item.source) && <h3 className="mt-1 font-medium">{item.title}</h3>}
-                      {item.body && <p className="mt-1 text-[12px] whitespace-pre-wrap text-[#e4e4e7]">{item.body}</p>}
-                      {waitingForReply(items, item) && <p className="mt-1 text-[12px] text-[#9a9aa3]">sent, waiting for reply…</p>}
+                      {item.body && <p className="mt-1 text-sm whitespace-pre-wrap text-[#e4e4e7]">{item.body}</p>}
+                      {waitingForReply(items, item) && <p className="mt-1 text-sm text-[#9a9aa3]">sent, waiting for reply…</p>}
                       {item.trade && (
-                        <p className="mt-1 text-[12px] break-words text-[#9a9aa3] tabular-nums">
+                        <p className="mt-1 text-sm break-words text-[#9a9aa3] tabular-nums">
                           {item.trade.coin} {item.trade.side} {formatLeverage(item.trade.leverage)} · size {formatQty(item.trade.size)} · entry{" "}
                           {formatPrice(item.trade.entry)}
                           {item.trade.exit != null ? ` · exit ${formatPrice(item.trade.exit)}` : ""}
@@ -267,27 +267,27 @@ function ChatDock({
   return (
     <div className="surface flex min-h-0 flex-1 flex-col p-2.5 md:max-h-72">
       <div className="mb-1.5 flex items-center justify-between gap-2">
-        <h2 className="text-[12px] font-semibold tracking-[0.14em] text-[#f5d547] uppercase">Paperboy</h2>
-        <button type="button" onClick={() => onOpen(false)} className="min-h-11 rounded-full border border-[#2c2d33] px-3 text-[12px] text-[#9a9aa3] md:min-h-0 md:px-2 md:py-0.5" aria-expanded={true}>
+        <h2 className="text-sm font-semibold tracking-[0.14em] text-[#f5d547] uppercase">Paperboy</h2>
+        <button type="button" onClick={() => onOpen(false)} className="min-h-11 rounded-full border border-[#2c2d33] px-3 text-sm text-[#9a9aa3] md:min-h-0 md:px-2 md:py-0.5" aria-expanded={true}>
           Hide
         </button>
       </div>
           <div ref={scroller} className="min-h-0 flex-1 space-y-1.5 overflow-y-auto overscroll-contain pr-1 max-md:max-h-[calc(70vh-14rem)]">
             {thread.length === 0 ? (
-              <p className="text-[12px] text-[#9a9aa3]">No messages yet.</p>
+              <p className="text-sm text-[#9a9aa3]">No messages yet.</p>
             ) : (
               thread.map((item) => {
                 const mine = item.source === "you";
                 return (
                   <article key={item.id} className={`rounded-xl border border-[#2c2d33] px-2.5 py-1.5 ${mine ? "ml-auto w-fit max-w-[90%]" : ""}`}>
-                    <div className="flex items-baseline justify-between gap-2 text-[12px]">
+                    <div className="flex items-baseline justify-between gap-2 text-sm">
                       <span className="tracking-[0.12em] text-[#f5d547] uppercase">{sourceLabel(item.source)}</span>
                       <time className="text-[#9a9aa3]" dateTime={new Date(item.ts).toISOString()}>
                         {formatSofiaWhen(item.ts)}
                       </time>
                     </div>
-                    {item.body && <p className="mt-1 text-[12px] whitespace-pre-wrap text-[#e4e4e7]">{item.body}</p>}
-                    {waitingForReply(items, item) && <p className="mt-1 text-[12px] text-[#9a9aa3]">sent, waiting for reply…</p>}
+                    {item.body && <p className="mt-1 text-sm whitespace-pre-wrap text-[#e4e4e7]">{item.body}</p>}
+                    {waitingForReply(items, item) && <p className="mt-1 text-sm text-[#9a9aa3]">sent, waiting for reply…</p>}
                   </article>
                 );
               })
@@ -312,8 +312,8 @@ function ChatDock({
               Send
             </Button>
           </form>
-          {!chatRelay && <p className="mt-1.5 text-[12px] text-[#9a9aa3]">Chat relay not configured</p>}
-          {sendError && <p className="mt-1.5 text-[12px] text-[#f5d547]">{sendError}</p>}
+          {!chatRelay && <p className="mt-1.5 text-sm text-[#9a9aa3]">Chat relay not configured</p>}
+          {sendError && <p className="mt-1.5 text-sm text-[#f5d547]">{sendError}</p>}
     </div>
   );
 }

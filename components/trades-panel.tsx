@@ -10,14 +10,14 @@ export function OpenFuturesTrades({ account, query = "" }: { account: AccountPay
   const needle = query.trim().toLowerCase();
   const rows = book.rows.filter((row) => !needle || `${row.symbol} ${row.side}`.toLowerCase().includes(needle));
   return (
-    <section className="rounded-2xl bg-[#f5d547] p-3 text-[#1a1400]">
+    <section className="rounded-2xl bg-gradient-to-b from-[#ffe98a] to-[#f5d547] p-3 text-[#1a1400] shadow-[0_10px_28px_rgba(245,213,71,0.18)]">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <div className="text-[12px] tracking-[0.14em] uppercase">Futures</div>
-          <h2 className="text-[15px] font-semibold">Open trades</h2>
+          <div className="text-sm tracking-[0.14em] uppercase">Futures</div>
+          <h2 className="text-base font-semibold">Open trades</h2>
         </div>
         {account.connected && rows.length > 0 && (
-          <div className="flex flex-wrap gap-2 text-[12px]">
+          <div className="flex flex-wrap gap-2 text-sm">
             <span>{rows.length} open</span>
             <span className={toneClass(book.totalPnl)}>{formatUsd(book.totalPnl)}</span>
             <span>Margin {formatUsd(book.totalMargin)}</span>
@@ -25,13 +25,13 @@ export function OpenFuturesTrades({ account, query = "" }: { account: AccountPay
         )}
       </div>
       {!account.connected ? (
-        <p className="mt-2 text-[12px]">{account.message ?? "Kraken Futures keys are not set on the server."}</p>
+        <p className="mt-2 text-sm">{account.message ?? "Kraken Futures keys are not set on the server."}</p>
       ) : rows.length === 0 ? (
-        <p className="mt-2 text-[12px]">{needle ? "No matching futures trades" : "No open futures trades"}</p>
+        <p className="mt-2 text-sm">{needle ? "No matching futures trades" : "No open futures trades"}</p>
       ) : (
         <div className="mt-2 max-h-80 space-y-2 overflow-y-auto">
           {rows.map((row) => (
-            <article key={row.id} className="rounded-xl bg-[#1a1400]/10 p-2">
+            <article key={row.id} className="rounded-xl bg-[#1a1400]/10 p-2 transition hover:bg-[#1a1400]/20">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <h3 className="font-semibold">{row.symbol}</h3>
@@ -44,7 +44,7 @@ export function OpenFuturesTrades({ account, query = "" }: { account: AccountPay
                   {formatUsd(row.pnlUsd)} <span className="text-sm">{formatPct(row.pnlPct)}</span>
                 </div>
               </div>
-              <dl className="mt-1.5 grid grid-cols-2 gap-1 text-[12px] sm:grid-cols-4">
+              <dl className="mt-1.5 grid grid-cols-2 gap-1 text-sm sm:grid-cols-4">
                 <Fact label="Size" value={row.size == null ? "—" : String(row.size)} />
                 <Fact label="Leverage" value={formatLeverage(row.leverage)} />
                 <Fact label="Entry" value={formatPrice(row.entry)} />
@@ -65,7 +65,7 @@ export function OpenFuturesTrades({ account, query = "" }: { account: AccountPay
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-[12px] tracking-[0.12em] uppercase opacity-70">{label}</dt>
+      <dt className="text-sm tracking-[0.12em] uppercase opacity-70">{label}</dt>
       <dd className="break-words tabular-nums">{value}</dd>
     </div>
   );
