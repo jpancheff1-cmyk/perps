@@ -1,8 +1,11 @@
 "use client";
 
-import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 
-export function ForceStop({ armed, onDone }: { armed: boolean; onDone: () => void }) {
+/** Shared size for the FORCE STOP / Performance pair. Color stays on each button. */
+const pairButton = "grid min-h-14 w-full place-items-center rounded-2xl px-2 text-center text-base font-black leading-tight tracking-wide select-none sm:px-3 sm:text-lg";
+
+export function ForceStop({ armed, onDone, companion }: { armed: boolean; onDone: () => void; companion?: ReactNode }) {
   const [holding, setHolding] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -60,30 +63,39 @@ export function ForceStop({ armed, onDone }: { armed: boolean; onDone: () => voi
 
   if (!armed) {
     return (
-      <button
-        type="button"
-        disabled
-        title="Set FORCE_STOP_ENABLED to true and add the trade keys."
-        className="min-h-14 w-full cursor-not-allowed rounded-2xl bg-[#7f1d1d] px-4 text-lg font-black tracking-wide text-white/70"
-      >
-        FORCE STOP (not armed)
-      </button>
+      <div className="grid grid-cols-2 items-stretch gap-2">
+        <button
+          type="button"
+          disabled
+          title="Set FORCE_STOP_ENABLED to true and add the trade keys."
+          className={`${pairButton} cursor-not-allowed bg-[#7f1d1d] text-white/70`}
+        >
+          <span>
+            {"FORCE STOP "}
+            <span className="max-sm:block">(not armed)</span>
+          </span>
+        </button>
+        {companion}
+      </div>
     );
   }
 
   return (
     <div>
-      <button
-        type="button"
-        onPointerDown={startHold}
-        onPointerUp={stopHold}
-        onPointerCancel={stopHold}
-        onContextMenu={(event) => event.preventDefault()}
-        aria-describedby="force-stop-hold"
-        className={`min-h-14 w-full touch-none rounded-2xl px-4 text-lg font-black tracking-wide text-white select-none ${holding ? "bg-[#ef4444]" : "bg-[#dc2626]"}`}
-      >
-        {holding ? "Hold…" : "FORCE STOP"}
-      </button>
+      <div className="grid grid-cols-2 items-stretch gap-2">
+        <button
+          type="button"
+          onPointerDown={startHold}
+          onPointerUp={stopHold}
+          onPointerCancel={stopHold}
+          onContextMenu={(event) => event.preventDefault()}
+          aria-describedby="force-stop-hold"
+          className={`${pairButton} touch-none text-white ${holding ? "bg-[#ef4444]" : "bg-[#dc2626]"}`}
+        >
+          {holding ? "Hold…" : "FORCE STOP"}
+        </button>
+        {companion}
+      </div>
       <p id="force-stop-hold" className="mt-2 text-sm text-[#fecaca]">
         Hold for 2 seconds. This cancels open futures orders and closes positions with reduce-only market orders. It does not withdraw or transfer.
       </p>

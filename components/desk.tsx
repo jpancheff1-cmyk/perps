@@ -95,9 +95,6 @@ export function Desk() {
             <span className="rounded-full border border-[#a855f7]/50 bg-[#a855f7]/15 px-3 py-1.5 text-sm text-[#c4b5fd]">
               {clock || "—"} Sofia
             </span>
-            <Button variant="outline" size="sm" className="min-h-11 px-4 md:min-h-0 md:px-3" type="button" onClick={() => setPerformanceOpen(true)}>
-              Performance
-            </Button>
             <Button variant="outline" size="sm" className="min-h-11 px-4 md:min-h-0 md:px-3" onClick={() => void lock()}>
               Lock
             </Button>
@@ -105,7 +102,21 @@ export function Desk() {
         </header>
         {error && <p className="mb-3 text-sm text-[#f0abfc]">The desk could not refresh. Trying again.</p>}
         <div className="space-y-4">
-          {state ? <ForceStop armed={state.forceStopArmed} onDone={() => void refresh()} /> : null}
+          {state ? (
+            <ForceStop
+              armed={state.forceStopArmed}
+              onDone={() => void refresh()}
+              companion={
+                <button
+                  type="button"
+                  onClick={() => setPerformanceOpen(true)}
+                  className="grid min-h-14 w-full place-items-center rounded-2xl bg-gradient-to-r from-[#a855f7] to-[#ec4899] px-2 text-center text-base font-black leading-tight tracking-wide text-white select-none sm:px-3 sm:text-lg"
+                >
+                  Performance
+                </button>
+              }
+            />
+          ) : null}
           {state ? <KrakenStrip account={state.account} spot={state.spot} earn={state.earn} spotOrders={state.spotOrders} /> : <Loading label="Loading the account…" />}
           {state ? <PositionBoard positions={state.account.positions} charts={state.charts} /> : null}
           {state ? <OpenFuturesTrades account={state.account} /> : <Loading label="Loading trades…" />}
