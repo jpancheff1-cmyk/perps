@@ -8,11 +8,12 @@ import { BotPanels, emptyBots } from "@/components/bots-strip";
 import { CoinRow } from "@/components/coin-row";
 import { SignalWatchPanel } from "@/components/signal-watch";
 import { ForceStop } from "@/components/force-stop";
-import { AskCurve, Digits, ExposureBars, GlobeLink, Heatmap, Oscillator, PayoffBars, Ticker } from "@/components/fui/widgets";
+import { Digits, ExposureBars, GlobeLink, Heatmap, Oscillator, Ticker } from "@/components/fui/widgets";
 import { KrakenStrip } from "@/components/kraken-strip";
 import { OneUp } from "@/components/one-up";
-import { PositionBoard } from "@/components/position-board";
 import { PerformancePanel } from "@/components/performance-panel";
+import { StrategyChart } from "@/components/strategy-chart";
+import { StrategyStats } from "@/components/strategy-stats";
 import { OpenFuturesTrades } from "@/components/trades-panel";
 import { demoDesk } from "@/lib/demo-desk";
 import { idleFeedLine, liveFeedLines, marketLiqLines, positionLiqLines } from "@/lib/live-feed";
@@ -26,6 +27,7 @@ import { buildOpenFutures } from "@/lib/futures-book";
 import { entriesToday, openRisk } from "@/lib/open-risk";
 import { CLIENT_POLL_MS } from "@/lib/poll";
 import { formatSofiaTime } from "@/lib/time";
+import type { StatTrade } from "@/lib/strategy-stats";
 import type { DeskPayload, MarketCandle, PositionChart, Trade } from "@/lib/types";
 
 const WireGlobe = dynamic(() => import("@/components/fui/globe").then((mod) => mod.WireGlobe), {
@@ -49,7 +51,6 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
   const [paperOn, setPaperOn] = useState(false);
   const [paper, setPaper] = useState<PaperSession | null>(null);
   const [demoOn, setDemoOn] = useState(false);
-  const [bookOpen, setBookOpen] = useState(false);
 
   async function refresh() {
     try {
@@ -320,19 +321,13 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
           })}
         </ul>
       </section>
-      <section className="g-pay fui-panel flex flex-col px-2 py-1">
-        <PanelHead title="Payoff" />
-        <PayoffBars values={(view?.trades ?? []).map((trade) => trade.pnlUsd).filter((value): value is number => value != null)} />
+      <section className="g-pay fui-panel flex min-h-0 flex-col px-2 py-1">
+        <PanelHead title="Strategy stats" />
+        <StrategyStats live={statTrades(state?.trades ?? [])} paper={(paper?.closed ?? []).map((close) => ({ pnl: close.pnlUsd, r: close.r ?? null, closedAt: close.closedAt }))} now={view?.serverTime ?? Date.now()} />
       </section>
       <section id="chart" className="g-ask fui-panel flex min-h-0 flex-col px-2 py-1">
-        <PanelHead title={focus ? `Ask curve · ${coinName(focus)}` : "Ask curve"} tag={focusChart?.last == null ? "—" : formatPrice(focusChart.last)} />
-        <div className="min-h-12 flex-1">{bookOpen && view ? <PositionBoard positions={view.account.positions} charts={charts} query={query} selectedSymbol={focus} onSelectSymbol={setSymbol} /> : <AskCurve values={closes} />}</div>
-        <button type="button" onClick={() => setBookOpen((open) => !open)} className="text-left text-[10px] uppercase text-[#00f0ff]">{bookOpen ? "Show curve" : "Show book"}</button>
-        <dl className="grid grid-cols-3 text-[10px] uppercase text-[#8fb4c9]">
-          <Fact label="Support" value={focusChart?.support == null ? "—" : formatPrice(focusChart.support)} />
-          <Fact label="Last" value={focusChart?.last == null ? "—" : formatPrice(focusChart.last)} />
-          <Fact label="Resistance" value={focusChart?.resistance == null ? "—" : formatPrice(focusChart.resistance)} />
-        </dl>
+        <PanelHead title="Strategy" tag={focus ? coinName(focus) : "BTC"} />
+        <StrategyChart coin={focus ? coinName(focus) : "BTC"} levels={chartLevels(view, focus ? coinName(focus) : "BTC")} />
       </section>
       <section className="g-shell fui-panel relative flex h-full min-h-0 flex-col px-2 py-1">
         <PanelHead title="Neural shell" />
@@ -340,7 +335,7 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
           {shell && <WireGlobe nodes={nodes} active={focus} reduced={reduced} />}
         </div>
       </section>
-      <section className="g-trades min-h-0 overflow-auto">
+      <section className="g-trades h-full min-h-0 overflow-auto">
         {view ? <OpenFuturesTrades account={view.account} settled={view.trades.filter((trade) => trade.status === "closed").slice(0, 4)} query={query} paper={paperOn} /> : <Loading label="Loading trades…" />}
       </section>
       <section className="g-quant fui-panel flex min-h-0 flex-col px-2 py-1">
@@ -453,6 +448,29 @@ function Period({ id, label, value, active, onPick }: { id: PeriodId; label: str
       <div className={`text-sm ${tone}`}>{value == null ? "—" : formatUsd(value)}</div>
     </button>
   );
+}
+
+function chartLevels(state: DeskPayload | null, coin: string) {
+  if (!state) return null;
+  const position = state.account.positions.find((item) => coinName(item.symbol) === coin && item.size);
+  if (!position?.entryPrice) return null;
+  const orders = state.account.orders.filter((order) => order.symbol === position.symbol);
+  const stop = orders.find((order) => order.orderType.includes("stop"));
+  const target = orders.find((order) => order.orderType.includes("take"));
+  return {
+    entry: position.entryPrice,
+    stop: stop?.stopPrice ?? null,
+    tp: target?.limitPrice ?? position.entryPrice * (position.side === "short" ? 0.95 : 1.05),
+  };
+}
+
+function statTrades(trades: Trade[]): StatTrade[] {
+  return trades
+    .filter((trade) => trade.status === "closed" && trade.pnlUsd != null && trade.closedAt != null)
+    .map((trade) => {
+      const risk = trade.stop != null ? Math.abs(trade.entry - trade.stop) * trade.size : 0;
+      return { pnl: trade.pnlUsd ?? 0, r: risk > 0 ? (trade.pnlUsd ?? 0) / risk : null, closedAt: trade.closedAt ?? 0 };
+    });
 }
 
 function coinName(symbol: string) {

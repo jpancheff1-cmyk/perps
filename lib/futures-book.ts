@@ -15,6 +15,7 @@ export type OpenFuturesRow = {
   openedAt: number | null;
   stop: number | null;
   target: number | null;
+  trail: number | null;
   pending: boolean;
 };
 
@@ -61,6 +62,7 @@ export function buildOpenFutures(positions: AccountPosition[], orders: FuturesOr
     const linked = orders.filter((order) => order.symbol === position.symbol && order.reduceOnly && order.side === close);
     const stop = linked.find(isStop);
     const target = linked.find(isTarget);
+    const trail = linked.find((order) => order.orderType === "trailing_stop");
     if (stop) used.add(stop.id);
     if (target) used.add(target.id);
     const price = position.markPrice ?? position.entryPrice;
@@ -79,6 +81,7 @@ export function buildOpenFutures(positions: AccountPosition[], orders: FuturesOr
       openedAt: position.openedAt,
       stop: stop ? orderPrice(stop) : null,
       target: target ? orderPrice(target) : null,
+      trail: trail ? orderPrice(trail) : null,
       pending: false,
     });
   }
@@ -101,6 +104,7 @@ export function buildOpenFutures(positions: AccountPosition[], orders: FuturesOr
       openedAt: order.receivedTime,
       stop: isStop(order) ? orderPrice(order) : null,
       target: isTarget(order) ? orderPrice(order) : null,
+      trail: order.orderType === "trailing_stop" ? orderPrice(order) : null,
       pending: true,
     });
   }
