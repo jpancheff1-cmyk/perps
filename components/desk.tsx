@@ -1,14 +1,15 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ActivityStream } from "@/components/activity-stream";
 import { BotPanels, emptyBots } from "@/components/bots-strip";
 import { CoinRow } from "@/components/coin-row";
 import { SignalWatchPanel } from "@/components/signal-watch";
 import { ForceStop } from "@/components/force-stop";
-import { Digits, ExposureBars, GlobeLink, Heatmap, Oscillator, Ticker } from "@/components/fui/widgets";
+import { Digits, ExposureBars, Heatmap, Oscillator } from "@/components/fui/widgets";
+import { TradeBeam } from "@/components/trade-beam";
 import { KrakenStrip } from "@/components/kraken-strip";
 import { OneUp } from "@/components/one-up";
 import { PerformancePanel } from "@/components/performance-panel";
@@ -16,7 +17,8 @@ import { StrategyChart } from "@/components/strategy-chart";
 import { StrategyStats } from "@/components/strategy-stats";
 import { OpenFuturesTrades } from "@/components/trades-panel";
 import { demoDesk } from "@/lib/demo-desk";
-import { idleFeedLine, liveFeedLines, marketLiqLines, positionLiqLines } from "@/lib/live-feed";
+import { liquidationFeedLines } from "@/lib/live-feed";
+import { nextBeams, type BeamTarget } from "@/lib/trade-beam";
 import type { PaperSession } from "@/lib/paper";
 import { paperView } from "@/lib/paper-view";
 import { equityStats } from "@/lib/equity-math";
@@ -50,6 +52,10 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
   const [chatCollapsed, setChatCollapsed] = useState(false);
   const [paperOn, setPaperOn] = useState(false);
   const [paper, setPaper] = useState<PaperSession | null>(null);
+  const [beams, setBeams] = useState<BeamTarget[]>([]);
+  const [spit, setSpit] = useState(0);
+  const beamSeen = useRef(new Set<string>());
+  const beamPrimed = useRef(false);
   const [demoOn, setDemoOn] = useState(false);
 
   async function refresh() {
@@ -73,6 +79,26 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
   useEffect(() => {
     setPaperOn(new URLSearchParams(window.location.search).get("paper") === "1");
   }, []);
+
+  useEffect(() => {
+    const liveItems = state?.items ?? [];
+    const livePositions = state?.account.positions ?? [];
+    if (!beamPrimed.current) {
+      if (!state) return;
+      for (const beam of nextBeams(liveItems, livePositions, new Set())) beamSeen.current.add(beam.id);
+      beamPrimed.current = true;
+    }
+    const paperItems = paperOn ? (paper?.events ?? []) : [];
+    const paperPositions = paperOn ? (paper?.positions ?? []).map((position) => ({ symbol: position.symbol, side: position.side, size: position.size })) : [];
+    const fresh = [
+      ...nextBeams(liveItems, livePositions, beamSeen.current),
+      ...nextBeams(paperItems, paperPositions, beamSeen.current),
+    ];
+    if (!fresh.length) return;
+    for (const beam of fresh) beamSeen.current.add(beam.id);
+    setBeams((current) => [...current, ...fresh].slice(-8));
+    setSpit((value) => value + 1);
+  }, [state, paper, paperOn]);
 
   useEffect(() => {
     if (!paperOn) return;
@@ -195,12 +221,7 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
   const openCount = view?.account.positions.filter((position) => position.size).length ?? 0;
   const heat = fillCells(charts);
   const bars = exposureRows(view);
-  const feed = [
-    ...positionLiqLines(view?.account.positions ?? [], view?.serverTime ?? Date.now()),
-    ...marketLiqLines(view?.marketLiqs ?? []),
-    ...liveFeedLines(view?.items ?? []),
-  ];
-  const feedLine = feed.length ? feed : [idleFeedLine(view?.serverTime ?? Date.now())];
+  const feedLine = liquidationFeedLines(state?.marketLiqs ?? []);
   const imbalance = bookImbalance(view);
   const equity = equityStats(view?.equity ?? [], view?.serverTime ?? Date.now());
   const risk = openRisk(view ? buildOpenFutures(view.account.positions, view.account.orders).rows : [], charts, equity.current);
@@ -208,7 +229,7 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
 
   return (
     <div className="fui-grid fui-screen relative z-10 bg-[#070710] text-[#e7f6ff] pb-[env(safe-area-inset-bottom)]">
-      <GlobeLink symbol={focus} reduced={reduced} />
+      <TradeBeam beams={beams} reduced={reduced} />
       <header className="g-head fui-panel flex flex-wrap items-center gap-x-3 gap-y-1 px-2 py-1">
         <div className="min-w-0">
           <h1 className="text-[13px] font-bold tracking-[0.14em] text-[#00f0ff] uppercase">Mission Control</h1>
@@ -262,9 +283,9 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
         </div>
         <CoinRow paper={paperOn} rows={view?.signals.rows ?? []} open={new Set((view?.account.positions ?? []).filter((position) => position.size).map((position) => coinName(position.symbol)))} />
       </header>
-      <div className="g-feed flex min-h-11 items-center gap-3 overflow-hidden border border-[#ff5a7a] bg-[#3a0a14] px-3 text-[#ffe8ee]">
+      <div className="g-feed flex min-h-11 items-center gap-3 overflow-hidden border border-[#ff5a7a] bg-[#3a0a14] px-3 text-[13px] text-[#ffe8ee]">
         <span className="shrink-0 text-[15px] font-bold text-[#ff8aa0]">● Live feed</span>
-        <div className="min-w-0 flex-1"><Ticker bare items={feedLine} reduced={reduced || feed.length < 2} /></div>
+        <div className="min-w-0 flex-1 truncate">{feedLine.length ? feedLine.join("   ·   ") : "no liquidations"}</div>
       </div>
       <BotPanels bots={view?.bots ?? emptyBots()} />
       <section className="g-wallet fui-panel flex flex-col px-2 py-1">
@@ -332,7 +353,7 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
       <section className="g-shell fui-panel relative flex h-full min-h-0 flex-col px-2 py-1">
         <PanelHead title="Neural shell" />
         <div className="relative min-h-0 flex-1">
-          {shell && <WireGlobe nodes={nodes} active={focus} reduced={reduced} />}
+          {shell && <WireGlobe nodes={nodes} active={focus} reduced={reduced} spit={spit} />}
         </div>
       </section>
       <section className="g-trades h-full min-h-0 overflow-auto">
@@ -359,7 +380,7 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
         <PanelHead title="Signal watch" />
         <SignalWatchPanel watch={view?.signals ?? null} now={view?.serverTime ?? Date.now()} paper={paperOn} />
       </section>
-      <section id="chat" className="g-chat fui-panel flex min-h-[168px] flex-col px-2 py-1 max-[1179px]:min-h-0">
+      <section id="chat" className="g-chat fui-panel flex min-h-0 flex-col px-2 py-1">
         <div className="flex items-center justify-between gap-2">
           <PanelHead title="Chat" />
           <button type="button" className="min-h-11 px-3 text-[11px] uppercase text-[#00f0ff] min-[1180px]:hidden" aria-expanded={!chatCollapsed} onClick={() => setChatCollapsed((collapsed) => !collapsed)}>

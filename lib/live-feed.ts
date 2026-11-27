@@ -1,6 +1,7 @@
 import { formatPrice } from "./format";
 import { formatSofiaTime } from "./time";
 import type { AccountPosition, ActivityItem, ActivityTrade, MarketLiquidation } from "./types";
+import { coinFromPerp, perpSymbol, UNIVERSE } from "./universe";
 
 const BLOCK_MS = 4 * 3_600_000;
 const BARE_NAME = /^(paperboy|you|trading\.exe)$/i;
@@ -81,9 +82,33 @@ export function positionLiqLines(positions: AccountPosition[], now: number) {
   return lines;
 }
 
+const UNIVERSE_SYMBOLS = new Set(UNIVERSE.map((coin) => perpSymbol(coin)));
+
+function usd(size: number, price: number) {
+  const amount = Math.abs(size * price);
+  return `$${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/**
+ * Kraken public history prints. `side` is the taker side: a sell liquidates a long,
+ * a buy liquidates a short. Linear PF size is in the base coin, so USD is size × price.
+ */
+export function liquidationFeedLines(events: MarketLiquidation[]) {
+  const lines: string[] = [];
+  const sorted = events.slice().sort((a, b) => b.time - a.time);
+  for (const event of sorted) {
+    const symbol = event.symbol.toUpperCase();
+    if (!UNIVERSE_SYMBOLS.has(symbol)) continue;
+    const liquidated = event.side === "sell" ? "long" : "short";
+    lines.push(`${sofiaHourMinute(event.time)} ${coinFromPerp(symbol)} ${liquidated} ${usd(event.size, event.price)} @ ${formatPrice(event.price)}`);
+    if (lines.length === 8) break;
+  }
+  return lines;
+}
+
 /** Public trade prints Kraken marked as liquidations. Side is the taker side. */
 export function marketLiqLines(events: MarketLiquidation[]) {
-  return events.map((event) => `${sofiaHourMinute(event.time)} ${coinName(event.symbol)} liq ${event.side} ${event.size} @ ${formatPrice(event.price)}`);
+  return liquidationFeedLines(events);
 }
 
 /** Real ingest events only, newest first. Chat and bare names are left out. */
