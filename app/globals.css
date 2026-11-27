@@ -24,6 +24,8 @@ body {
   background: #070709;
   color: #f4f4f5;
   overflow-x: clip;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
@@ -112,8 +114,11 @@ body {
   animation: ticker 240s linear infinite;
 }
 
-.g-feed:hover .ticker-track {
-  animation-play-state: paused;
+@media (hover: hover) {
+  .g-feed:hover .ticker-track,
+  .g-feed:focus-within .ticker-track {
+    animation-play-state: paused;
+  }
 }
 
 @keyframes ticker {
@@ -213,6 +218,56 @@ textarea {
   }
   100% {
     opacity: 0;
+  }
+}
+
+@media (max-width: 1179px) {
+  .fui-screen {
+    padding-bottom: calc(8px + env(safe-area-inset-bottom));
+  }
+  .g-head { order: 0; }
+  .g-wallet { order: 1; }
+  .g-trades { order: 2; }
+  .g-phase { order: 3; }
+  .g-trace { order: 4; }
+  .g-state { order: 5; }
+  .g-x { order: 6; }
+  .g-dca { order: 7; }
+  .g-feed { order: 8; }
+  .g-chat {
+    order: 9;
+    padding-bottom: calc(env(safe-area-inset-bottom) + var(--keyboard-inset, 0px));
+  }
+  .g-osc { order: 10; }
+  .g-heat { order: 11; }
+  .g-pay { order: 12; }
+  .g-ask { order: 13; }
+  .g-quant { order: 14; }
+  .g-tick { order: 15; }
+  .g-shell { display: none; }
+  .g-head button,
+  .g-wallet button,
+  .signal-sort button {
+    height: auto;
+    min-height: 40px;
+  }
+  .g-trades article {
+    min-height: 44px;
+  }
+  .signal-head { display: none; }
+  .signal-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 8px 0;
+    border-top: 1px solid #16324a;
+  }
+  .g-feed,
+  .g-tick,
+  .fui-panel {
+    max-width: 100%;
   }
 }
 

@@ -5,7 +5,7 @@ import type { SignalRow } from "@/lib/types";
 export function CoinRow({ rows, open }: { rows: SignalRow[]; open: Set<string> }) {
   const byCoin = new Map(rows.map((row) => [row.coin, row]));
   return (
-    <div className="flex gap-2 overflow-x-auto pb-1">
+    <div className="flex w-full min-w-0 gap-2 overflow-x-auto overscroll-x-contain pb-1">
       {UNIVERSE.map((coin) => {
         const row = byCoin.get(coin);
         const change = row?.change24 ?? null;

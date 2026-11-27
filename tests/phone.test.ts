@@ -61,6 +61,10 @@ test("phone layout keeps the viewport, a closable dock, and a lighter background
   assert.match(css, /ticker 240s linear infinite/);
   assert.match(css, /animation-play-state:\s*paused/);
   assert.match(css, /overflow-x:\s*clip/);
+  assert.match(css, /text-size-adjust:\s*100%/);
+  assert.match(css, /\.g-wallet \{ order: 1; \}/);
+  assert.match(css, /\.g-chat \{/);
+  assert.match(css, /--keyboard-inset/);
   assert.match(css, /safe-area-inset-top/);
   assert.equal(css.includes("font-mono"), false);
   assert.equal(css.includes("Roboto_Mono"), false);
