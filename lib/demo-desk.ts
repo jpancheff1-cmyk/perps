@@ -1,4 +1,6 @@
+import { nextSofia4h, rankSignals, signalFromCandles, type Ohlc } from "./signals";
 import type { AccountPosition, BotsView, DeskPayload, MarketCandle, PositionChart, Trade } from "./types";
+import { UNIVERSE } from "./universe";
 
 const COINS = [
   ["PF_XBTUSD", "BTC", 64250],
@@ -177,6 +179,29 @@ export function demoDesk(now = Date.now()): DeskPayload {
     serverTime: now,
     chatRelay: false,
     forceStopArmed: false,
+    signals: demoSignals(now),
+  };
+}
+
+function ramp(count: number, start: number, drift: number, span: number, now: number): Ohlc[] {
+  const candles: Ohlc[] = [];
+  let price = start;
+  for (let index = 0; index < count; index += 1) {
+    price += drift;
+    candles.push({ t: now - (count - index) * span, h: price + Math.abs(drift) + 0.4, l: price - 0.2, c: price });
+  }
+  return candles;
+}
+
+function demoSignals(now: number) {
+  return {
+    nextClose: nextSofia4h(now),
+    rows: rankSignals(
+      UNIVERSE.map((coin, index) => {
+        const drift = index % 4 === 0 ? -0.35 : 0.55;
+        return signalFromCandles(coin, ramp(90, 20 + index, drift, 4 * 3_600_000, now), ramp(70, 15 + index, drift * 3, 86_400_000, now), index === 2);
+      }),
+    ),
   };
 }
 

@@ -206,6 +206,21 @@ export type BotsView = { xstocks: XStocksView; dca: DcaView };
 
 export type EquityPoint = { ts: number; equity: number };
 
+export type SignalStatus = "ready" | "near" | "no" | "in";
+
+export type SignalRow = {
+  coin: string;
+  price: number | null;
+  change24: number | null;
+  trend: "up" | "down" | null;
+  dailySide: boolean | null;
+  adx: number | null;
+  score: number | null;
+  status: SignalStatus;
+};
+
+export type SignalWatch = { nextClose: number; rows: SignalRow[] };
+
 export type MarketLiquidation = {
   symbol: string;
   side: "buy" | "sell";
@@ -225,6 +240,7 @@ export type DeskPayload = {
   bots: BotsView;
   equity: EquityPoint[];
   marketLiqs: MarketLiquidation[];
+  signals: SignalWatch;
   serverTime: number;
   chatRelay: boolean;
   forceStopArmed: boolean;

@@ -4,6 +4,8 @@ import { readFeed } from "@/lib/activity-store";
 import { loadBotsView } from "@/lib/bots";
 import { readEquity } from "@/lib/equity-store";
 import { getMarketLiquidations } from "@/lib/market-liqs";
+import { getSignalWatch } from "@/lib/signal-poller";
+import { coinFromPerp } from "@/lib/universe";
 import { chatRelayConfigured } from "@/lib/chat";
 import { requireUser } from "@/lib/guard";
 import { forceStopArmed } from "@/lib/kraken-trade";
@@ -17,6 +19,7 @@ export async function GET(request: NextRequest) {
   const snapshot = await getSnapshot();
   const feed = readFeed();
   const marketLiqs = await getMarketLiquidations(snapshot.account.positions.map((position) => position.symbol));
+  const signals = await getSignalWatch(snapshot.account.positions.filter((position) => position.size).map((position) => coinFromPerp(position.symbol)));
   return NextResponse.json(
     {
       ...snapshot,
@@ -25,6 +28,7 @@ export async function GET(request: NextRequest) {
       bots: await loadBotsView(),
       equity: readEquity(),
       marketLiqs,
+      signals,
       serverTime: Date.now(),
       chatRelay: chatRelayConfigured(),
       forceStopArmed: forceStopArmed(),

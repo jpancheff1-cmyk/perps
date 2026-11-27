@@ -12,6 +12,8 @@ import { equityStats } from "../lib/equity-math.ts";
 import { readEquity, recordEquity, resetEquityForTests } from "../lib/equity-store.ts";
 import { idleFeedLine, lastSofia4h, liveFeedLines, positionLiqLines } from "../lib/live-feed.ts";
 import { parseHistory } from "../lib/market-liqs.ts";
+import { ema, scoreSignal } from "../lib/signals.ts";
+import { UNIVERSE } from "../lib/universe.ts";
 import { atr14, entriesToday, openRisk } from "../lib/open-risk.ts";
 import type { ActivityItem } from "../lib/types.ts";
 import { SESSION_COOKIE, checkPassword, readSessionToken, signSession } from "../lib/auth.ts";
@@ -455,6 +457,24 @@ test("equity snapshots keep peak, drawdown, and today's change", () => {
     resetStoreForTests();
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("signal rules mark a 4h trend only when ADX and the daily side agree", () => {
+  assert.equal(ema([2, 2, 2, 2], 3), 2);
+  assert.equal(UNIVERSE.length, 32);
+  assert.equal(UNIVERSE.includes("ARB") && UNIVERSE.includes("POL") && UNIVERSE.includes("STRK") && UNIVERSE.includes("FIL") && UNIVERSE.includes("TIA"), true);
+  const names = UNIVERSE as readonly string[];
+  for (const excluded of ["CRO", "QNT", "XMR", "TRX", "SHIB"]) assert.equal(names.includes(excluded), false);
+  const ready = scoreSignal({ close: 120, ema20: 110, ema50: 100, adx: 40, dailyEma: 90, inPosition: false });
+  assert.equal(ready.trend, "up");
+  assert.equal(ready.dailySide, true);
+  assert.equal(ready.status, "ready");
+  const near = scoreSignal({ close: 101, ema20: 100, ema50: 99, adx: 20, dailyEma: 100, inPosition: false });
+  assert.equal(near.status === "near" || near.status === "no", true);
+  assert.equal(scoreSignal({ close: 200, ema20: 90, ema50: 100, adx: 10, dailyEma: 50, inPosition: false }).status, "no");
+  assert.equal(scoreSignal({ close: 120, ema20: 110, ema50: 100, adx: 40, dailyEma: 90, inPosition: true }).status, "in");
+  assert.equal(fs.existsSync(new URL("../public/coins/btc.svg", import.meta.url)), true);
+  assert.equal(fs.existsSync(new URL("../public/coins/tia.svg", import.meta.url)), true);
 });
 
 test("public history keeps liquidation prints and drops fills", () => {

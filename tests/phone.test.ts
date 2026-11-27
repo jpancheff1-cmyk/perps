@@ -25,6 +25,9 @@ test("phone layout keeps the viewport, a closable dock, and a lighter background
   assert.equal(desk.includes(">PS<"), false);
   assert.match(desk, /Mission Control/);
   assert.equal(desk.includes("State-space"), false);
+  assert.equal(desk.includes("Decision trace"), false);
+  assert.equal(desk.includes('placeholder="SEARCH"'), false);
+  assert.match(desk, /Signal watch/);
   assert.equal(desk.includes("phase portrait"), false);
   assert.equal(desk.includes("Directional · hedge"), false);
   assert.equal(desk.includes('tag="EDGE"'), false);
