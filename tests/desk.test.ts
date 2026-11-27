@@ -10,7 +10,7 @@ import { applyIngest, readFeed, resetStoreForTests } from "../lib/activity-store
 import { botsView } from "../lib/bots.ts";
 import { equityStats } from "../lib/equity-math.ts";
 import { readEquity, recordEquity, resetEquityForTests } from "../lib/equity-store.ts";
-import { idleFeedLine, lastSofia4h, liveFeedLines, positionLiqLines } from "../lib/live-feed.ts";
+import { idleFeedLine, lastSofia4h, liquidationFeedLines, liveFeedLines, positionLiqLines } from "../lib/live-feed.ts";
 import { parseHistory } from "../lib/market-liqs.ts";
 import { ema, nextSofia4h, scoreSignal, signalFromCandles } from "../lib/signals.ts";
 import { UNIVERSE } from "../lib/universe.ts";
@@ -630,6 +630,18 @@ test("public history keeps liquidation prints and drops fills", () => {
   assert.equal(parsed[0]?.side, "sell");
   assert.equal(parsed[0]?.size, 0.4);
   assert.equal(parsed[1]?.symbol, "PF_XBTUSD");
+  const tape = liquidationFeedLines([
+    ...parsed,
+    { symbol: "PF_CROUSD", side: "sell", size: 10, price: 0.1, time: Date.parse("2026-11-27T08:04:00Z") },
+  ]);
+  assert.equal(tape.length, 2);
+  assert.match(tape[0], /10:02 BTC short/);
+  assert.match(tape[0], /\$320\.00/);
+  assert.match(tape[0], /3,200/);
+  assert.match(tape[1], /10:01 BTC long/);
+  assert.match(tape[1], /\$24,400\.00/);
+  assert.equal(tape.some((line) => line.includes("CRO")), false);
+  assert.equal(liquidationFeedLines([]).length, 0);
   const lines = positionLiqLines(
     [{ symbol: "PF_XBTUSD", side: "long", size: 0.2, entryPrice: 64000, unrealizedPnl: 1, leverage: 3, liquidationPrice: 58000, markPrice: 64000, openedAt: 1 }],
     Date.parse("2026-11-27T08:00:00Z"),

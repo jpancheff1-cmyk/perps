@@ -1,8 +1,8 @@
 import { finite } from "./format";
 import { ACCOUNT_POLL_MS } from "./poll";
 import type { MarketLiquidation } from "./types";
+import { perpSymbol, UNIVERSE } from "./universe";
 
-const CORE = ["PF_XBTUSD", "PF_ETHUSD", "PF_SOLUSD"];
 const KEEP_MS = 6 * 3_600_000;
 const CAP = 40;
 
@@ -55,12 +55,26 @@ async function history(symbol: string): Promise<MarketLiquidation[]> {
   }
 }
 
+async function mapPool(symbols: string[], limit: number) {
+  const results: MarketLiquidation[][] = [];
+  let index = 0;
+  async function worker() {
+    while (index < symbols.length) {
+      const current = index;
+      index += 1;
+      results[current] = await history(symbols[current]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, symbols.length) }, () => worker()));
+  return results;
+}
+
 async function refresh() {
   const poll = state();
   if (poll.inflight) return poll.inflight;
   poll.inflight = (async () => {
-    const symbols = [...new Set([...CORE, ...poll.extra])].slice(0, 8);
-    const batches = await Promise.all(symbols.map((symbol) => history(symbol)));
+    const symbols = UNIVERSE.map((coin) => perpSymbol(coin));
+    const batches = await mapPool(symbols, 4);
     const now = Date.now();
     const merged = new Map<string, MarketLiquidation>();
     for (const event of [...poll.events, ...batches.flat()]) {
