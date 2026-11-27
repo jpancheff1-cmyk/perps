@@ -8,22 +8,26 @@ import { BotPanels, emptyBots } from "@/components/bots-strip";
 import { CoinRow } from "@/components/coin-row";
 import { SignalWatchPanel } from "@/components/signal-watch";
 import { ForceStop } from "@/components/force-stop";
-import { AskCurve, Digits, ExposureBars, GlobeLink, Heatmap, Oscillator, PayoffBars, Ticker } from "@/components/fui/widgets";
+import { Digits, ExposureBars, GlobeLink, Heatmap, Oscillator, Ticker } from "@/components/fui/widgets";
 import { KrakenStrip } from "@/components/kraken-strip";
 import { OneUp } from "@/components/one-up";
-import { PositionBoard } from "@/components/position-board";
 import { PerformancePanel } from "@/components/performance-panel";
+import { StrategyChart } from "@/components/strategy-chart";
+import { StrategyStats } from "@/components/strategy-stats";
 import { OpenFuturesTrades } from "@/components/trades-panel";
 import { demoDesk } from "@/lib/demo-desk";
 import { idleFeedLine, liveFeedLines, marketLiqLines, positionLiqLines } from "@/lib/live-feed";
 import type { PaperSession } from "@/lib/paper";
 import { paperView } from "@/lib/paper-view";
 import { equityStats } from "@/lib/equity-math";
+import { marginBreakdown } from "@/lib/margin";
+import { perpSymbol, UNIVERSE } from "@/lib/universe";
 import { formatPrice, formatUsd } from "@/lib/format";
 import { buildOpenFutures } from "@/lib/futures-book";
 import { entriesToday, openRisk } from "@/lib/open-risk";
 import { CLIENT_POLL_MS } from "@/lib/poll";
 import { formatSofiaTime } from "@/lib/time";
+import type { StatTrade } from "@/lib/strategy-stats";
 import type { DeskPayload, MarketCandle, PositionChart, Trade } from "@/lib/types";
 
 const WireGlobe = dynamic(() => import("@/components/fui/globe").then((mod) => mod.WireGlobe), {
@@ -42,11 +46,11 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
   const [symbol, setSymbol] = useState<string | null>(null);
   const [reduced, setReduced] = useState(false);
   const [phone, setPhone] = useState(false);
+  const [shell, setShell] = useState(false);
   const [chatCollapsed, setChatCollapsed] = useState(false);
   const [paperOn, setPaperOn] = useState(false);
   const [paper, setPaper] = useState<PaperSession | null>(null);
   const [demoOn, setDemoOn] = useState(false);
-  const [bookOpen, setBookOpen] = useState(false);
 
   async function refresh() {
     try {
@@ -98,6 +102,14 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
   useEffect(() => {
     const media = window.matchMedia("(max-width: 1179px)");
     const apply = () => setPhone(media.matches);
+    apply();
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
+  }, []);
+
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 768px)");
+    const apply = () => setShell(media.matches);
     apply();
     media.addEventListener("change", apply);
     return () => media.removeEventListener("change", apply);
@@ -170,6 +182,7 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
 
   const [fixture] = useState(() => demoDesk());
   const view = paperOn && paper && state ? paperView(state, paper) : demoOn ? fixture : state;
+  const margin = view?.account.connected ? marginBreakdown(view.account) : null;
   const total = view ? connectedTotal(view) : null;
   const periods = view ? periodPnl(view.trades) : { day: null, week: null, month: null };
   const charts = view?.charts ?? [];
@@ -182,7 +195,6 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
   const openCount = view?.account.positions.filter((position) => position.size).length ?? 0;
   const heat = fillCells(charts);
   const bars = exposureRows(view);
-  const tape = tickerItems(charts, view);
   const feed = [
     ...positionLiqLines(view?.account.positions ?? [], view?.serverTime ?? Date.now()),
     ...marketLiqLines(view?.marketLiqs ?? []),
@@ -264,7 +276,8 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
           <Fact label="Portfolio" value={view?.account.connected ? formatUsd(view.account.portfolioValue) : "—"} />
           <Fact label="Unrealized" value={view?.account.connected ? formatUsd(view.account.unrealizedPnl) : "—"} tone={toneOf(view?.account.unrealizedPnl)} />
           <Fact label="Available" value={view?.account.connected ? formatUsd(view.account.availableMargin) : "—"} />
-          <Fact label="Margin used" value={marginUsed(view)} />
+          <Fact label="Margin used" value={margin ? formatUsd(margin.marginUsed) : "—"} />
+          {margin?.showHaircut ? <Fact label="Collateral haircut" value={formatUsd(margin.haircut)} /> : null}
           <Fact label="Spot" value={view?.spot.connected && view.spot.totalUsd != null ? formatUsd(view.spot.totalUsd) : "—"} />
           <Fact label="Earn" value={view?.earn.connected && view.earn.totalUsd != null ? formatUsd(view.earn.totalUsd) : "—"} />
           <Fact label="Open" value={view ? String(openCount) : "—"} />
@@ -308,27 +321,21 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
           })}
         </ul>
       </section>
-      <section className="g-pay fui-panel flex flex-col px-2 py-1">
-        <PanelHead title="Payoff" />
-        <PayoffBars values={(view?.trades ?? []).map((trade) => trade.pnlUsd).filter((value): value is number => value != null)} />
+      <section className="g-pay fui-panel flex min-h-0 flex-col px-2 py-1">
+        <PanelHead title="Strategy stats" />
+        <StrategyStats live={statTrades(state?.trades ?? [])} paper={(paper?.closed ?? []).map((close) => ({ pnl: close.pnlUsd, r: close.r ?? null, closedAt: close.closedAt }))} now={view?.serverTime ?? Date.now()} />
       </section>
       <section id="chart" className="g-ask fui-panel flex min-h-0 flex-col px-2 py-1">
-        <PanelHead title={focus ? `Ask curve · ${coinName(focus)}` : "Ask curve"} tag={focusChart?.last == null ? "—" : formatPrice(focusChart.last)} />
-        <div className="min-h-12 flex-1">{bookOpen && view ? <PositionBoard positions={view.account.positions} charts={charts} query={query} selectedSymbol={focus} onSelectSymbol={setSymbol} /> : <AskCurve values={closes} />}</div>
-        <button type="button" onClick={() => setBookOpen((open) => !open)} className="text-left text-[10px] uppercase text-[#00f0ff]">{bookOpen ? "Show curve" : "Show book"}</button>
-        <dl className="grid grid-cols-3 text-[10px] uppercase text-[#8fb4c9]">
-          <Fact label="Support" value={focusChart?.support == null ? "—" : formatPrice(focusChart.support)} />
-          <Fact label="Last" value={focusChart?.last == null ? "—" : formatPrice(focusChart.last)} />
-          <Fact label="Resistance" value={focusChart?.resistance == null ? "—" : formatPrice(focusChart.resistance)} />
-        </dl>
+        <PanelHead title="Strategy" tag={focus ? coinName(focus) : "BTC"} />
+        <StrategyChart coin={focus ? coinName(focus) : "BTC"} levels={chartLevels(view, focus ? coinName(focus) : "BTC")} />
       </section>
-      <section className="g-shell fui-panel relative flex min-h-64 flex-col px-2 py-1">
+      <section className="g-shell fui-panel relative flex h-full min-h-0 flex-col px-2 py-1">
         <PanelHead title="Neural shell" />
-        <div className="min-h-0 flex-1">
-          {!phone && nodes.length > 0 && <WireGlobe nodes={nodes} active={focus} reduced={reduced} />}
+        <div className="relative min-h-0 flex-1">
+          {shell && <WireGlobe nodes={nodes} active={focus} reduced={reduced} />}
         </div>
       </section>
-      <section className="g-trades min-h-0 overflow-auto">
+      <section className="g-trades h-full min-h-0 overflow-auto">
         {view ? <OpenFuturesTrades account={view.account} settled={view.trades.filter((trade) => trade.status === "closed").slice(0, 4)} query={query} paper={paperOn} /> : <Loading label="Loading trades…" />}
       </section>
       <section className="g-quant fui-panel flex min-h-0 flex-col px-2 py-1">
@@ -391,9 +398,6 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
           ))}
         </div>
       </section>
-      <div className="g-tick">
-        <Ticker items={tape} reduced={reduced} />
-      </div>
       {performanceOpen ? <PerformancePanel onClose={() => setPerformanceOpen(false)} /> : null}
     </div>
   );
@@ -446,6 +450,29 @@ function Period({ id, label, value, active, onPick }: { id: PeriodId; label: str
   );
 }
 
+function chartLevels(state: DeskPayload | null, coin: string) {
+  if (!state) return null;
+  const position = state.account.positions.find((item) => coinName(item.symbol) === coin && item.size);
+  if (!position?.entryPrice) return null;
+  const orders = state.account.orders.filter((order) => order.symbol === position.symbol);
+  const stop = orders.find((order) => order.orderType.includes("stop"));
+  const target = orders.find((order) => order.orderType.includes("take"));
+  return {
+    entry: position.entryPrice,
+    stop: stop?.stopPrice ?? null,
+    tp: target?.limitPrice ?? position.entryPrice * (position.side === "short" ? 0.95 : 1.05),
+  };
+}
+
+function statTrades(trades: Trade[]): StatTrade[] {
+  return trades
+    .filter((trade) => trade.status === "closed" && trade.pnlUsd != null && trade.closedAt != null)
+    .map((trade) => {
+      const risk = trade.stop != null ? Math.abs(trade.entry - trade.stop) * trade.size : 0;
+      return { pnl: trade.pnlUsd ?? 0, r: risk > 0 ? (trade.pnlUsd ?? 0) / risk : null, closedAt: trade.closedAt ?? 0 };
+    });
+}
+
 function coinName(symbol: string) {
   let name = symbol.toUpperCase().replace(/^(PF_|PI_|FI_|FF_)/, "");
   name = name.replace(/(USDT|USDC|USD)$/, "");
@@ -458,7 +485,9 @@ function globeNodes(charts: PositionChart[], state: DeskPayload | null) {
   for (const chart of charts) if (chart.symbol) names.add(chart.symbol);
   for (const position of state?.account.positions ?? []) if (position.symbol) names.add(position.symbol);
   for (const asset of state?.spot.assets ?? []) if (asset.asset) names.add(asset.asset);
-  return [...names].slice(0, 32).map((symbol) => ({ symbol }));
+  const symbols = [...names].slice(0, 32);
+  const nodes = (symbols.length > 0 ? symbols : UNIVERSE.map((coin) => perpSymbol(coin))).map((symbol) => ({ symbol }));
+  return nodes;
 }
 
 function quote(charts: PositionChart[], state: DeskPayload | null, coin: string) {
@@ -497,18 +526,6 @@ function exposureRows(state: DeskPayload | null) {
   return [...rows.values()];
 }
 
-function tickerItems(charts: PositionChart[], state: DeskPayload | null) {
-  const items: string[] = [];
-  for (const chart of charts) if (chart.last != null) items.push(`${coinName(chart.symbol)} ${formatPrice(chart.last)}`);
-  for (const asset of state?.spot.assets ?? []) if (asset.usd != null) items.push(`${asset.asset} ${formatUsd(asset.usd)}`);
-  return items;
-}
-
-function marginRatio(state: DeskPayload | null) {
-  if (!state?.account.connected || state.account.portfolioValue == null || state.account.availableMargin == null || state.account.portfolioValue <= 0) return null;
-  return Math.min(1, Math.max(0, (state.account.portfolioValue - state.account.availableMargin) / state.account.portfolioValue));
-}
-
 function exposureRatio(state: DeskPayload | null) {
   if (!state?.account.connected || state.account.portfolioValue == null || state.account.portfolioValue <= 0) return null;
   const notion = exposureRows(state).reduce((sum, row) => sum + row.long + row.short, 0);
@@ -544,11 +561,6 @@ function Fact({ label, value, tone }: { label: string; value: string; tone?: "up
 function toneOf(value: number | null | undefined): "up" | "down" | undefined {
   if (value == null || value === 0) return undefined;
   return value > 0 ? "up" : "down";
-}
-
-function marginUsed(state: DeskPayload | null) {
-  if (!state?.account.connected || state.account.portfolioValue == null || state.account.availableMargin == null) return "—";
-  return formatUsd(state.account.portfolioValue - state.account.availableMargin);
 }
 
 function CandleStrip({ candles }: { candles: MarketCandle[] }) {

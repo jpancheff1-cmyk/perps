@@ -8,115 +8,105 @@ export const globeLink = { x: 0, y: 0, ok: false };
 
 export type GlobeNode = { symbol: string };
 
-function Field({ nodes, active, reduced }: { nodes: GlobeNode[]; active: string | null; reduced: boolean }) {
-  const group = useRef<THREE.Group>(null);
-  const acc = useRef(0);
-  const points = useMemo(() => {
+const RADIUS = 0.72;
+const TILT = (35 * Math.PI) / 180;
+
+/** Fraction of the diameter, origin at the top-left of the sphere's box. */
+function onFace(across: number, down: number) {
+  const x = (across - 0.5) * RADIUS * 2;
+  const y = (0.5 - down) * RADIUS * 2;
+  const z = Math.sqrt(Math.max(RADIUS * RADIUS - x * x - y * y, 0.0004));
+  return new THREE.Vector3(x, y, z).normalize().multiplyScalar(RADIUS + 0.02);
+}
+
+function Avatar({ nodes, active, reduced }: { nodes: GlobeNode[]; active: string | null; reduced: boolean }) {
+  const drift = useRef<THREE.Group>(null);
+  const body = useRef<THREE.Group>(null);
+  const eyes = useRef<THREE.Group>(null);
+  const orbit = useRef<THREE.Group>(null);
+  const thick = useRef<THREE.Mesh>(null);
+  const thin = useRef<THREE.Mesh>(null);
+  const clock = useRef(0);
+  const coins = useMemo(() => {
     const count = Math.max(nodes.length, 1);
     return nodes.map((_, index) => {
-      const phi = Math.acos(1 - (2 * (index + 0.5)) / count);
-      const theta = Math.PI * (1 + Math.sqrt(5)) * index;
-      return new THREE.Vector3(Math.sin(phi) * Math.cos(theta), Math.cos(phi), Math.sin(phi) * Math.sin(theta)).multiplyScalar(1.2);
+      const angle = (index / count) * Math.PI * 2;
+      return new THREE.Vector3(Math.cos(angle) * 1.35, Math.sin(angle) * 0.16, Math.sin(angle) * 1.35);
     });
   }, [nodes]);
-  const dots = useMemo(() => {
-    const list: THREE.Vector3[] = [];
-    for (let index = 0; index < 28; index += 1) {
-      const a = points[index % Math.max(points.length, 1)] ?? new THREE.Vector3(0, 1.2, 0);
-      const b = points[(index * 3) % Math.max(points.length, 1)] ?? a;
-      list.push(a.clone().lerp(b, (index % 7) / 7));
-    }
-    return list;
-  }, [points]);
+  const thickAt = useMemo(() => onFace(0.5, 0.35), []);
+  const thinAt = useMemo(() => onFace(0.75, 0.25), []);
 
   useFrame((state, delta) => {
-    if (reduced || !group.current) return;
-    acc.current += delta;
-    if (acc.current < 1 / 24) return;
-    acc.current = 0;
-    group.current.rotation.y += 0.012;
+    if (!drift.current || !body.current || !orbit.current) return;
     const index = nodes.findIndex((node) => node.symbol === active);
-    if (index < 0) {
+    if (index >= 0 && orbit.current) {
+      const vector = coins[index].clone();
+      vector.applyMatrix4(orbit.current.matrixWorld);
+      vector.project(state.camera);
+      const canvas = state.gl.domElement.getBoundingClientRect();
+      globeLink.x = canvas.left + (vector.x * 0.5 + 0.5) * canvas.width;
+      globeLink.y = canvas.top + (-vector.y * 0.5 + 0.5) * canvas.height;
+      globeLink.ok = vector.z < 1;
+    } else {
       globeLink.ok = false;
-      return;
     }
-    const vector = points[index].clone();
-    vector.applyMatrix4(group.current.matrixWorld);
-    vector.project(state.camera);
-    const canvas = state.gl.domElement.getBoundingClientRect();
-    globeLink.x = canvas.left + (vector.x * 0.5 + 0.5) * canvas.width;
-    globeLink.y = canvas.top + (-vector.y * 0.5 + 0.5) * canvas.height;
-    globeLink.ok = vector.z < 1;
-    dots.forEach((dot, dotIndex) => {
-      const next = points[(dotIndex + 1) % Math.max(points.length, 1)];
-      if (!next) return;
-      dot.lerp(next, 0.04);
-      if (dot.distanceTo(next) < 0.05) dot.copy(points[dotIndex % Math.max(points.length, 1)] ?? next);
-    });
+    if (reduced) return;
+    clock.current += delta;
+    const t = clock.current;
+    drift.current.position.x = Math.sin(t * 0.35) * 0.22;
+    drift.current.position.z = Math.cos(t * 0.27) * 0.12;
+    const bob = Math.sin(t * 1.6);
+    body.current.position.y = bob * 0.07;
+    const stretch = 1 + bob * 0.04;
+    const squash = 1 / Math.sqrt(stretch);
+    body.current.scale.set(squash, stretch, squash);
+    orbit.current.rotation.y += delta * 0.28;
+    const coin = index >= 0 ? coins[index] : null;
+    const lookX = THREE.MathUtils.clamp((state.pointer.x * 0.55 + (coin ? coin.x * 0.15 : 0)), -0.35, 0.35);
+    const lookY = THREE.MathUtils.clamp((state.pointer.y * 0.35 + (coin ? coin.y * 0.2 : 0)), -0.25, 0.25);
+    if (eyes.current) {
+      eyes.current.rotation.y = THREE.MathUtils.lerp(eyes.current.rotation.y, lookX, 0.08);
+      eyes.current.rotation.x = THREE.MathUtils.lerp(eyes.current.rotation.x, -lookY, 0.08);
+    }
+    const blink = (t % 4.8) < 0.14 ? 0.16 : 1;
+    if (thick.current) thick.current.scale.y = blink;
+    if (thin.current) thin.current.scale.y = blink;
   });
 
-  const shell = useMemo(() => {
-    const positions: number[] = [];
-    const place = (index: number, radius: number) => {
-      const phi = Math.acos(1 - 2 * ((index + 0.5) % 1200) / 1200);
-      const theta = Math.PI * (1 + Math.sqrt(5)) * index;
-      return [radius * Math.sin(phi) * Math.cos(theta), radius * Math.cos(phi), radius * Math.sin(phi) * Math.sin(theta)];
-    };
-    for (let index = 0; index < 1600; index += 1) {
-      const radius = 0.92 + (index % 4) * 0.03;
-      const start = place(index, radius);
-      const end = place(index + 11, radius);
-      positions.push(start[0], start[1], start[2], end[0], end[1], end[2]);
-    }
-    for (let index = 0; index < 220; index += 1) {
-      const inner = place(index, 0.18);
-      const outer = place(index, 1.22);
-      positions.push(inner[0], inner[1], inner[2], outer[0], outer[1], outer[2]);
-    }
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-    return geometry;
-  }, []);
-  const cloud = useMemo(() => {
-    const positions: number[] = [];
-    for (let index = 0; index < 500; index += 1) {
-      const phi = Math.acos(1 - 2 * ((index + 0.5) / 500));
-      const theta = Math.PI * (1 + Math.sqrt(5)) * index;
-      const radius = index < 80 ? 0.12 : 0.96;
-      positions.push(radius * Math.sin(phi) * Math.cos(theta), radius * Math.cos(phi), radius * Math.sin(phi) * Math.sin(theta));
-    }
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-    return geometry;
-  }, []);
-
   return (
-    <group ref={group}>
-      <lineSegments geometry={shell}>
-        <lineBasicMaterial color="#f2fbff" transparent opacity={0.72} />
-      </lineSegments>
-      <points geometry={cloud}>
-        <pointsMaterial color="#ffffff" size={1.4} sizeAttenuation={false} />
-      </points>
-      {points.map((point, index) => (
-        <mesh key={nodes[index]?.symbol ?? index} position={point}>
-          <sphereGeometry args={[active === nodes[index]?.symbol ? 0.03 : 0.012, 6, 6]} />
-          <meshBasicMaterial color={active === nodes[index]?.symbol ? "#ffcc00" : "#00f0ff"} />
+    <group ref={drift}>
+      <group ref={orbit}>
+        {coins.map((point, index) => {
+          const on = active === nodes[index]?.symbol;
+          return (
+            <mesh key={nodes[index]?.symbol ?? index} position={point}>
+              <sphereGeometry args={[on ? 0.05 : 0.02, 12, 12]} />
+              <meshBasicMaterial color={on ? "#ffcc00" : "#9fd8ff"} />
+            </mesh>
+          );
+        })}
+      </group>
+      <group ref={body}>
+        <mesh>
+          <sphereGeometry args={[RADIUS, 48, 48]} />
+          <meshStandardMaterial color="#050505" metalness={0.92} roughness={0.16} />
         </mesh>
-      ))}
-      {!reduced &&
-        dots.map((dot, index) => (
-          <mesh
-            key={`p-${index}`}
-            position={dot}
-            ref={(mesh) => {
-              if (mesh) mesh.position.copy(dot);
-            }}
-          >
-            <sphereGeometry args={[0.015, 4, 4]} />
-            <meshBasicMaterial color="#39ff14" />
+        <mesh scale={1.04}>
+          <sphereGeometry args={[RADIUS, 32, 32]} />
+          <meshBasicMaterial color="#00f0ff" side={THREE.BackSide} transparent opacity={0.42} />
+        </mesh>
+        <group ref={eyes}>
+          <mesh ref={thick} position={thickAt} rotation={[0, 0, TILT]}>
+            <capsuleGeometry args={[0.055, 0.1, 6, 12]} />
+            <meshBasicMaterial color="#f7fbff" />
           </mesh>
-        ))}
+          <mesh ref={thin} position={thinAt} rotation={[0, 0, TILT]}>
+            <capsuleGeometry args={[0.032, 0.2, 6, 12]} />
+            <meshBasicMaterial color="#ffffff" />
+          </mesh>
+        </group>
+      </group>
     </group>
   );
 }
@@ -124,12 +114,15 @@ function Field({ nodes, active, reduced }: { nodes: GlobeNode[]; active: string 
 export function WireGlobe({ nodes, active, reduced }: { nodes: GlobeNode[]; active: string | null; reduced: boolean }) {
   return (
     <Canvas
-      dpr={[1, 1.25]}
+      dpr={[1, 1.5]}
       frameloop={reduced ? "demand" : "always"}
-      gl={{ antialias: false, powerPreference: "low-power", alpha: true }}
-      camera={{ position: [0, 0, 3.1], fov: 42 }}
+      gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
+      camera={{ position: [0, 0.12, 3.7], fov: 34 }}
     >
-      <Field nodes={nodes} active={active} reduced={reduced} />
+      <ambientLight intensity={0.45} />
+      <directionalLight position={[-2.4, 2.2, 3.2]} intensity={1.15} color="#e7f2ff" />
+      <directionalLight position={[2.6, 0.4, -2.2]} intensity={1.8} color="#00f0ff" />
+      <Avatar nodes={nodes} active={active} reduced={reduced} />
     </Canvas>
   );
 }

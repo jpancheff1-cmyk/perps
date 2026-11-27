@@ -20,6 +20,7 @@ import { SESSION_COOKIE, checkPassword, readSessionToken, signSession } from "..
 import { resetChatGateForTests } from "../lib/chat.ts";
 import { activityMatches, waitingForReply } from "../lib/feed.ts";
 import { parseKrakenAccount, signKrakenRequest } from "../lib/kraken.ts";
+import { marginBreakdown, positionInitialMargin } from "../lib/margin.ts";
 import { realizedSeries } from "../lib/pnl.ts";
 import { ACCOUNT_POLL_MS, CLIENT_POLL_MS } from "../lib/poll.ts";
 import { formatSofiaTime, startOfSofiaDay } from "../lib/time.ts";
@@ -91,6 +92,56 @@ test("Kraken account parser reads flex value, cash USDC, and positions", () => {
   assert.equal(parsed.usdcSource, "cash");
   assert.equal(parsed.positions[0].symbol, "PF_XBTUSD");
   assert.equal(parsed.updatedAt, 10);
+});
+
+test("an empty flex book uses initial margin, not the collateral haircut", () => {
+  const parsed = parseKrakenAccount(
+    {
+      accounts: {
+        flex: {
+          portfolioValue: 3250.7713,
+          availableMargin: 3234.5174,
+          initialMargin: 0,
+          initialMarginWithOrders: 0,
+        },
+      },
+    },
+    { openPositions: [] },
+    1,
+    { openOrders: [] },
+  );
+  assert.equal(parsed.initialMargin, 0);
+  const flat = marginBreakdown(parsed);
+  assert.equal(flat.marginUsed, 0);
+  assert.ok(Math.abs(flat.haircut - (3250.7713 - 3234.5174)) < 1e-6);
+  assert.equal(flat.showHaircut, true);
+  const ignored = marginBreakdown({
+    portfolioValue: 3250.7713,
+    availableMargin: 3234.5174,
+    initialMargin: 16.25,
+    positions: [],
+    orders: [],
+  });
+  assert.equal(ignored.marginUsed, 0);
+  const reserved = parseKrakenAccount(
+    { accounts: { flex: { portfolioValue: 1000, availableMargin: 900, initialMargin: 10, initialMarginWithOrders: 40 } } },
+    { openPositions: [{ symbol: "PF_SOLUSD", side: "long", size: 1, price: 100 }] },
+    2,
+    { openOrders: [] },
+  );
+  assert.equal(reserved.initialMargin, 40);
+  const open = marginBreakdown(reserved);
+  assert.equal(open.marginUsed, 40);
+  assert.ok(Math.abs(open.haircut - 60) < 1e-9);
+  assert.equal(positionInitialMargin(10, 100, 5), 200);
+  const tiny = marginBreakdown({
+    portfolioValue: 100,
+    availableMargin: 99.7,
+    initialMargin: 0,
+    positions: [],
+    orders: [],
+  });
+  assert.equal(tiny.showHaircut, false);
 });
 
 test("poll intervals stay on the desk clock", () => {

@@ -14,7 +14,7 @@ export function OpenFuturesTrades({ account, query = "", settled = [], paper = f
     <section className="fui-panel flex h-full min-h-0 flex-col p-2 text-[11px] text-[#d7eef8]">
       <div className="mb-1 flex items-center justify-between gap-2">
         <h2 className="text-[11px] tracking-[0.12em] text-[#9fd8ff] uppercase">Live trades</h2>
-        <span className="text-[10px] text-[#39ff14] uppercase">{account.connected ? "LIVE" : "OFF"}</span>
+        <span className={`text-[10px] font-bold uppercase ${paper ? "text-[#ffcc00]" : account.connected ? "text-[#39ff14]" : "text-[#ff5a7a]"}`}>{paper ? "PAPER" : account.connected ? "LIVE" : "OFF"}</span>
       </div>
       {account.connected && (rows.length > 0 || closed.length > 0) && (
         <div className="min-h-0 flex-1 space-y-1 overflow-y-auto">
@@ -32,8 +32,8 @@ export function OpenFuturesTrades({ account, query = "", settled = [], paper = f
                   {formatUsd(row.pnlUsd)} {formatPct(row.pnlPct)}
                 </div>
               </div>
-              <p className="truncate text-[10px] text-[#8fb4c9] uppercase">
-                Size {row.size == null ? "—" : row.size} · lev {formatLeverage(row.leverage)} · entry {formatPrice(row.entry)} · mark {formatPrice(row.mark)} · liq {formatPrice(row.liquidation)} · stop {formatPrice(row.stop)} · target {formatPrice(row.target)} · opened {row.openedAt == null ? "—" : formatSofiaWhen(row.openedAt)}
+              <p className="text-[10px] leading-snug break-words text-[#d7eef8] uppercase">
+                {row.side} · size {row.size == null ? "—" : row.size} · entry {formatPrice(row.entry)} · mark {formatPrice(row.mark)} · upnl {formatUsd(row.pnlUsd)} · stop {formatPrice(row.stop)} · tp {formatPrice(row.target)} · trail {formatPrice(row.trail)}
               </p>
             </article>
           ))}

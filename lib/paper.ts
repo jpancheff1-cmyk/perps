@@ -33,9 +33,12 @@ export type PaperClose = {
   entry: number;
   exit: number;
   pnlUsd: number;
+  r: number | null;
   reason: "tp" | "stop" | "trail";
   closedAt: number;
 };
+
+export type PaperSeed = { coin: string; entry: number; atr: number; role: PaperRole };
 
 export type PaperSession = {
   equity: number;
@@ -44,6 +47,7 @@ export type PaperSession = {
   closed: PaperClose[];
   events: ActivityItem[];
   scripts: { coin: string; role: PaperRole; step: number; done: boolean }[];
+  anchors: PaperSeed[];
   startedAt: number;
   updatedAt: number;
 };
@@ -59,7 +63,7 @@ export function sizePaper(entry: number, atr: number, equity = PAPER_EQUITY) {
   return { notional, size, stopDistance, leverage: Number(leverage.toFixed(2)), riskUsd: (notional * stopDistance) / entry };
 }
 
-export function blankSession(seeds: { coin: string; entry: number; atr: number; role: PaperRole }[], now: number): PaperSession {
+export function blankSession(seeds: PaperSeed[], now: number): PaperSession {
   return {
     equity: PAPER_EQUITY,
     curve: [{ ts: now, equity: PAPER_EQUITY }],
@@ -67,6 +71,7 @@ export function blankSession(seeds: { coin: string; entry: number; atr: number; 
     closed: [],
     events: [],
     scripts: seeds.map((seed) => ({ coin: seed.coin, role: seed.role, step: 0, done: false })),
+    anchors: seeds,
     startedAt: now,
     updatedAt: now,
   };
@@ -132,6 +137,7 @@ function closePart(session: PaperSession, position: PaperPosition, size: number,
   const pnl = (exit - position.entry) * size;
   session.equity += pnl;
   position.size = Math.max(0, position.size - size);
+  const risk = Math.abs(position.entry - position.stop) * size;
   session.closed.unshift({
     id: `paper-${position.coin}-${now}`,
     coin: position.coin,
@@ -139,6 +145,7 @@ function closePart(session: PaperSession, position: PaperPosition, size: number,
     entry: position.entry,
     exit,
     pnlUsd: pnl,
+    r: risk > 0 ? pnl / risk : null,
     reason,
     closedAt: now,
   });
@@ -165,6 +172,7 @@ export function stepPaper(session: PaperSession, seeds: { coin: string; entry: n
     events: session.events.slice(),
     curve: session.curve.slice(),
     scripts: session.scripts.map((script) => ({ ...script })),
+    anchors: session.anchors?.map((seed) => ({ ...seed })) ?? [],
   };
   for (const script of next.scripts) {
     if (script.done) continue;
@@ -222,6 +230,23 @@ export function stepPaper(session: PaperSession, seeds: { coin: string; entry: n
   next.updatedAt = now;
   next.events = next.events.slice(0, 80);
   return next;
+}
+
+/** If every script has closed, open the held coin again so paper mode always has a position. */
+export function ensureOpen(session: PaperSession, seeds: PaperSeed[], now: number) {
+  if (session.positions.some((position) => position.size > 0)) return session;
+  const seed = seeds.find((item) => item.role === "open") ?? seeds[0];
+  if (!seed) return session;
+  const scripts = session.scripts.some((script) => script.coin === seed.coin)
+    ? session.scripts.map((script) => (script.coin === seed.coin ? { ...script, role: seed.role, done: false, step: 0 } : script))
+    : [...session.scripts, { coin: seed.coin, role: seed.role, step: 0, done: false }];
+  return stepPaper({ ...session, scripts, anchors: seeds.length ? seeds : session.anchors }, [seed], now);
+}
+
+export function advancePaper(session: PaperSession, seeds: PaperSeed[], now: number) {
+  const anchors = seeds.length ? seeds : (session.anchors ?? []);
+  const moved = anchors.length ? stepPaper({ ...session, anchors }, anchors, now) : { ...session, anchors };
+  return ensureOpen(moved, anchors, now);
 }
 
 export function atrFromCandles(candles: MarketCandle[]) {

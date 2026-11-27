@@ -28,6 +28,7 @@ function emptyAccount(partial: Partial<AccountPayload>): AccountPayload {
     usdcWallet: null,
     usdcSource: null,
     availableMargin: null,
+    initialMargin: null,
     unrealizedPnl: null,
     positions: [],
     orders: [],
@@ -116,6 +117,15 @@ function readOrder(row: Record<string, unknown>): FuturesOrder {
   };
 }
 
+function readInitialMargin(account: Record<string, unknown>) {
+  const withOrders = finite(account.initialMarginWithOrders) ?? finite(account.initial_margin_with_orders);
+  if (withOrders != null) return withOrders;
+  const plain = finite(account.initialMargin) ?? finite(account.initial_margin);
+  if (plain != null) return plain;
+  const requirements = asRecord(account.marginRequirements);
+  return finite(requirements?.im) ?? finite(requirements?.initialMargin);
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 }
@@ -125,6 +135,7 @@ export function parseKrakenAccount(accountsJson: unknown, positionsJson: unknown
   const accounts = asRecord(root?.accounts) ?? {};
   let portfolioValue: number | null = null;
   let availableMargin: number | null = null;
+  let initialMargin: number | null = null;
   let unrealizedPnl: number | null = null;
   let cashUsdc: number | null = null;
   let flexUsdc: number | null = null;
@@ -136,6 +147,8 @@ export function parseKrakenAccount(accountsJson: unknown, positionsJson: unknown
     if (portfolio != null) portfolioValue = portfolio;
     const margin = finite(account.availableMargin);
     if (margin != null) availableMargin = margin;
+    const reserved = readInitialMargin(account);
+    if (reserved != null && (name.toLowerCase() === "flex" || initialMargin == null)) initialMargin = reserved;
     const unrealized = finite(account.totalUnrealized) ?? finite(account.pnl);
     if (unrealized != null) unrealizedPnl = unrealized;
 
@@ -187,6 +200,14 @@ export function parseKrakenAccount(accountsJson: unknown, positionsJson: unknown
   const ordersRoot = asRecord(ordersJson);
   const orderList = Array.isArray(ordersRoot?.openOrders) ? ordersRoot.openOrders : Array.isArray(ordersJson) ? ordersJson : [];
   const orders = orderList.map((row) => readOrder(asRecord(row) ?? {})).filter((order) => order.symbol);
+  if (initialMargin == null) {
+    const fromPositions = list.reduce((sum: number, row) => {
+      const record = asRecord(row) ?? {};
+      const reserved = finite(record.initialMargin) ?? finite(record.initial_margin);
+      return reserved == null ? sum : sum + reserved;
+    }, 0);
+    if (fromPositions > 0) initialMargin = fromPositions;
+  }
 
   const usdcSource = cashUsdc != null ? "cash" : flexUsdc != null ? "flex" : null;
   return {
@@ -195,6 +216,7 @@ export function parseKrakenAccount(accountsJson: unknown, positionsJson: unknown
     usdcWallet: cashUsdc ?? flexUsdc,
     usdcSource,
     availableMargin,
+    initialMargin,
     unrealizedPnl,
     positions,
     orders,

@@ -1,4 +1,4 @@
-import { atrFromCandles, blankSession, stepPaper, type PaperRole, type PaperSession } from "./paper";
+import { advancePaper, atrFromCandles, blankSession, type PaperRole, type PaperSeed, type PaperSession } from "./paper";
 import { clearPaper, readPaper, writePaper } from "./paper-store";
 import { perpSymbol } from "./universe";
 import type { MarketCandle } from "./types";
@@ -37,8 +37,8 @@ async function publicCandles(symbol: string): Promise<MarketCandle[]> {
     .filter((candle) => [candle.t, candle.o, candle.h, candle.l, candle.c].every(Number.isFinite));
 }
 
-async function seed(now: number) {
-  const seeds = [];
+async function seed(now: number): Promise<PaperSeed[]> {
+  const seeds: PaperSeed[] = [];
   for (const plan of COINS) {
     const candles = await publicCandles(perpSymbol(plan.coin));
     const last = candles[candles.length - 1];
@@ -51,15 +51,12 @@ async function seed(now: number) {
 
 export async function tickPaper(now = Date.now()): Promise<PaperSession> {
   const current = readPaper();
-  if (current && now - current.updatedAt < STEP_MS) return current;
-  const seeds = await seed(now);
-  const base = current ?? blankSession(seeds, now);
-  if (!current) {
-    writePaper(base);
-    return base;
-  }
-  if (seeds.length === 0) return current;
-  const next = stepPaper(current, seeds, now);
+  const fresh = await seed(now);
+  const base = current ?? blankSession(fresh, now);
+  const anchors = fresh.length ? fresh : (base.anchors ?? []);
+  const due = !current || base.positions.length === 0 || now - base.updatedAt >= STEP_MS;
+  if (!due && base.positions.length > 0) return base;
+  const next = advancePaper({ ...base, anchors }, anchors, now);
   writePaper(next);
   return next;
 }

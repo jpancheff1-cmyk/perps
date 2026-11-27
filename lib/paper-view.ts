@@ -1,3 +1,4 @@
+import { positionInitialMargin } from "./margin";
 import type { PaperSession } from "./paper";
 import { PAPER_EQUITY } from "./paper";
 import type { AccountPosition, DeskPayload, FuturesOrder, MarketCandle, PositionChart, Trade } from "./types";
@@ -14,8 +15,10 @@ function atrChart(symbol: string, price: number, atr: number): PositionChart {
 }
 
 export function paperView(base: DeskPayload, session: PaperSession): DeskPayload {
-  const unrealized = session.positions.reduce((sum, position) => sum + (position.mark - position.entry) * position.size, 0);
-  const positions: AccountPosition[] = session.positions.map((position) => ({
+  const held = new Set((session.anchors ?? []).filter((seed) => seed.role === "open").map((seed) => seed.coin));
+  const ordered = session.positions.slice().sort((a, b) => Number(held.has(b.coin)) - Number(held.has(a.coin)));
+  const unrealized = ordered.reduce((sum, position) => sum + (position.mark - position.entry) * position.size, 0);
+  const positions: AccountPosition[] = ordered.map((position) => ({
     symbol: position.symbol,
     side: "long",
     size: position.size,
@@ -26,17 +29,31 @@ export function paperView(base: DeskPayload, session: PaperSession): DeskPayload
     liquidationPrice: null,
     openedAt: position.openedAt,
   }));
-  const orders: FuturesOrder[] = session.positions.map((position) => ({
-    id: `paper-stop-${position.coin}`,
-    symbol: position.symbol,
-    side: "sell",
-    orderType: "stop",
-    limitPrice: null,
-    stopPrice: position.stop,
-    size: position.size,
-    reduceOnly: true,
-    receivedTime: position.openedAt,
-  }));
+  const orders: FuturesOrder[] = ordered.flatMap((position) => {
+    const stop: FuturesOrder = {
+      id: `paper-stop-${position.coin}`,
+      symbol: position.symbol,
+      side: "sell",
+      orderType: position.phase === "runner" ? "trailing_stop" : "stop",
+      limitPrice: null,
+      stopPrice: position.stop,
+      size: position.size,
+      reduceOnly: true,
+      receivedTime: position.openedAt,
+    };
+    const target: FuturesOrder = {
+      id: `paper-tp-${position.coin}`,
+      symbol: position.symbol,
+      side: "sell",
+      orderType: "take_profit",
+      limitPrice: position.entry * 1.05,
+      stopPrice: null,
+      size: position.phase === "runner" ? position.size : position.initialSize * (2 / 3),
+      reduceOnly: true,
+      receivedTime: position.openedAt,
+    };
+    return [stop, target];
+  });
   const trades: Trade[] = session.closed.map((close) => ({
     id: close.id,
     coin: close.coin,
@@ -55,8 +72,12 @@ export function paperView(base: DeskPayload, session: PaperSession): DeskPayload
     updatedAt: close.closedAt,
   }));
   const open = new Set(session.positions.map((position) => position.coin));
+  const initialMargin = ordered.reduce(
+    (sum, position) => sum + positionInitialMargin(position.size, position.mark > 0 ? position.mark : position.entry, position.leverage),
+    0,
+  );
   const charts = [
-    ...session.positions
+    ...ordered
       .filter((position) => !base.charts.some((chart) => chart.symbol === position.symbol))
       .map((position) => atrChart(position.symbol, position.mark, position.atr)),
     ...base.charts,
@@ -69,6 +90,7 @@ export function paperView(base: DeskPayload, session: PaperSession): DeskPayload
       connected: true,
       portfolioValue: session.equity + unrealized,
       availableMargin: session.equity,
+      initialMargin,
       unrealizedPnl: unrealized,
       positions,
       orders,
