@@ -1,5 +1,5 @@
 import { formatPrice } from "./format";
-import { formatSofiaTime, startOfSofiaDay } from "./time";
+import { formatSofiaTime } from "./time";
 import type { AccountPosition, ActivityItem, ActivityTrade, MarketLiquidation } from "./types";
 
 const BLOCK_MS = 4 * 3_600_000;
@@ -9,11 +9,9 @@ export function sofiaHourMinute(ms: number) {
   return formatSofiaTime(ms).slice(0, 5);
 }
 
-/** Start of the current 4-hour block in Europe/Sofia: 00, 04, 08, 12, 16, or 20. */
+/** Start of the current 4h candle. Kraken closes these on UTC epoch boundaries: 00/04/08/12/16/20 UTC. */
 export function lastSofia4h(now = Date.now()) {
-  const start = startOfSofiaDay(new Date(now));
-  const elapsed = Math.max(0, now - start);
-  return start + Math.floor(elapsed / BLOCK_MS) * BLOCK_MS;
+  return Math.floor(now / BLOCK_MS) * BLOCK_MS;
 }
 
 export function idleFeedLine(now = Date.now()) {

@@ -12,7 +12,7 @@ import { equityStats } from "../lib/equity-math.ts";
 import { readEquity, recordEquity, resetEquityForTests } from "../lib/equity-store.ts";
 import { idleFeedLine, lastSofia4h, liveFeedLines, positionLiqLines } from "../lib/live-feed.ts";
 import { parseHistory } from "../lib/market-liqs.ts";
-import { ema, scoreSignal } from "../lib/signals.ts";
+import { ema, nextSofia4h, scoreSignal } from "../lib/signals.ts";
 import { UNIVERSE } from "../lib/universe.ts";
 import { atr14, entriesToday, openRisk } from "../lib/open-risk.ts";
 import type { ActivityItem } from "../lib/types.ts";
@@ -461,8 +461,17 @@ test("equity snapshots keep peak, drawdown, and today's change", () => {
 
 test("signal rules mark a 4h trend only when ADX and the daily side agree", () => {
   assert.equal(ema([2, 2, 2, 2], 3), 2);
-  assert.equal(UNIVERSE.length, 32);
-  assert.equal(UNIVERSE.includes("ARB") && UNIVERSE.includes("POL") && UNIVERSE.includes("STRK") && UNIVERSE.includes("FIL") && UNIVERSE.includes("TIA"), true);
+  assert.deepEqual(
+    [...UNIVERSE],
+    ["BTC", "ETH", "BNB", "XRP", "SOL", "HYPE", "ZEC", "DOGE", "LINK", "ADA", "XLM", "NEAR", "BCH", "LTC", "AVAX", "UNI", "SUI", "HBAR", "TAO", "AAVE", "PEPE", "CRV", "INJ", "ENA", "FET", "SEI", "DOT", "ARB", "POL", "STRK", "FIL", "TIA"],
+  );
+  const atTenFiftyTwoSofia = Date.parse("2026-11-27T08:52:00Z");
+  const next = nextSofia4h(atTenFiftyTwoSofia);
+  assert.equal(next, Date.parse("2026-11-27T12:00:00Z"));
+  assert.equal(formatSofiaTime(next).slice(0, 5), "14:00");
+  assert.equal(next - atTenFiftyTwoSofia, 3 * 3_600_000 + 8 * 60_000);
+  const summer = Date.parse("2026-07-15T07:52:00Z");
+  assert.equal(formatSofiaTime(nextSofia4h(summer)).slice(0, 5), "11:00");
   const names = UNIVERSE as readonly string[];
   for (const excluded of ["CRO", "QNT", "XMR", "TRX", "SHIB"]) assert.equal(names.includes(excluded), false);
   const ready = scoreSignal({ close: 120, ema20: 110, ema50: 100, adx: 40, dailyEma: 90, inPosition: false });
@@ -473,8 +482,7 @@ test("signal rules mark a 4h trend only when ADX and the daily side agree", () =
   assert.equal(near.status === "near" || near.status === "no", true);
   assert.equal(scoreSignal({ close: 200, ema20: 90, ema50: 100, adx: 10, dailyEma: 50, inPosition: false }).status, "no");
   assert.equal(scoreSignal({ close: 120, ema20: 110, ema50: 100, adx: 40, dailyEma: 90, inPosition: true }).status, "in");
-  assert.equal(fs.existsSync(new URL("../public/coins/btc.svg", import.meta.url)), true);
-  assert.equal(fs.existsSync(new URL("../public/coins/tia.svg", import.meta.url)), true);
+  for (const coin of UNIVERSE) assert.equal(fs.existsSync(new URL(`../public/coins/${coin.toLowerCase()}.svg`, import.meta.url)), true, coin);
 });
 
 test("public history keeps liquidation prints and drops fills", () => {
