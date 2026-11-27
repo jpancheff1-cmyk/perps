@@ -10,7 +10,7 @@ export function OpenFuturesTrades({ account, query = "" }: { account: AccountPay
   const needle = query.trim().toLowerCase();
   const rows = book.rows.filter((row) => !needle || `${row.symbol} ${row.side}`.toLowerCase().includes(needle));
   return (
-    <section className="rounded-2xl bg-gradient-to-b from-[#ffe98a] to-[#f5d547] p-3 text-[#1a1400] shadow-[0_10px_28px_rgba(245,213,71,0.18)]">
+    <section className="fui-panel p-3 text-[#d7eef8]">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <div className="text-sm tracking-[0.14em] uppercase">Futures</div>
@@ -31,7 +31,7 @@ export function OpenFuturesTrades({ account, query = "" }: { account: AccountPay
       ) : (
         <div className="mt-2 max-h-80 space-y-2 overflow-y-auto">
           {rows.map((row) => (
-            <article key={row.id} className="rounded-xl bg-[#1a1400]/10 p-2 transition hover:bg-[#1a1400]/20">
+            <article key={row.id} data-trade-row={row.symbol} className="tape-in rounded-xl border border-[#16324a] p-2 transition hover:border-[#00f0ff]">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <h3 className="font-semibold">{row.symbol}</h3>

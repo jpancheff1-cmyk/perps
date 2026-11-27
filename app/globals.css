@@ -30,6 +30,56 @@ body {
   padding-top: env(safe-area-inset-top);
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
+  background: #070710;
+  color: #e7f6ff;
+}
+
+.fui-panel {
+  background: rgba(7, 12, 24, 0.92);
+  border: 1px solid #16324a;
+}
+
+.fui-panel h2 {
+  color: #00f0ff;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.fui-label {
+  color: #7fdbff;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 13px;
+}
+
+.fui-muted {
+  color: #8fb4c9;
+  font-size: 14px;
+}
+
+.fui-digits {
+  color: #39ff14;
+  font-size: clamp(1.8rem, 4vw, 3rem);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.ticker-track {
+  display: inline-block;
+  white-space: nowrap;
+  padding: 6px 0;
+  animation: ticker 32s linear infinite;
+}
+
+@keyframes ticker {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
 }
 
 svg text {
@@ -136,6 +186,9 @@ textarea {
   .lift:active {
     transition: none;
     transform: none;
+  }
+  .ticker-track {
+    animation: none;
   }
 }
 

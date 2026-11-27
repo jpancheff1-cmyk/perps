@@ -13,11 +13,11 @@ test("phone layout keeps the viewport, a closable dock, and a lighter background
   assert.match(layout, /width:\s*"device-width"/);
   assert.match(layout, /initialScale:\s*1/);
   assert.match(layout, /viewportFit:\s*"cover"/);
-  assert.match(layout, /Roboto\(/);
-  assert.equal(layout.includes("Roboto_Mono"), false);
+  assert.match(layout, /JetBrains_Mono\(/);
+  assert.equal(layout.includes("Roboto"), false);
 
   const desk = read("components/desk.tsx");
-  assert.match(desk, /md:grid-cols-\[168px_minmax\(0,1fr\)\]/);
+  assert.match(desk, /fui-grid/);
   assert.match(desk, /safe-area-inset-bottom/);
 
   const dock = read("components/activity-stream.tsx");
