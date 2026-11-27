@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { activityMatches, waitingForReply, type ActivityFilter } from "@/lib/feed";
+import { activityMatches, type ActivityFilter } from "@/lib/feed";
 import { formatLeverage, formatPrice, formatQty, formatUsd } from "@/lib/format";
 import { formatSofiaWhen } from "@/lib/time";
 import type { ActivityItem } from "@/lib/types";
@@ -145,9 +145,7 @@ export function ActivityStream({ items, chatRelay, onRefresh, query = "", embedd
                 </button>
               ))}
             </div>
-            {visible.length === 0 ? (
-              <p className="mt-2 text-sm text-[#9a9aa3]">{emptyCopy(filter)}</p>
-            ) : (
+            {visible.length > 0 && (
               <div className="mt-2 min-h-0 flex-1 space-y-1.5 overflow-y-auto overscroll-contain pr-1 max-md:max-h-[calc(70vh-11rem)]">
                 {visible.map((item) => {
                   const mine = item.source === "you";
@@ -164,7 +162,6 @@ export function ActivityStream({ items, chatRelay, onRefresh, query = "", embedd
                       </div>
                       {item.title !== sourceLabel(item.source) && <h3 className="mt-1 font-medium">{item.title}</h3>}
                       {item.body && <p className="mt-1 text-sm whitespace-pre-wrap text-[#e4e4e7]">{item.body}</p>}
-                      {waitingForReply(items, item) && <p className="mt-1 text-sm text-[#9a9aa3]">sent, waiting for reply…</p>}
                       {item.trade && (
                         <p className="mt-1 text-sm break-words text-[#9a9aa3] tabular-nums">
                           {item.trade.coin} {item.trade.side} {formatLeverage(item.trade.leverage)} · size {formatQty(item.trade.size)} · entry{" "}
@@ -231,7 +228,7 @@ export function ActivityStream({ items, chatRelay, onRefresh, query = "", embedd
 function ChatDock({
   open,
   items,
-  chatRelay,
+  chatRelay: _chatRelay,
   draft,
   sending,
   sendError,
@@ -273,10 +270,7 @@ function ChatDock({
         </button>
       </div>
           <div ref={scroller} className="min-h-0 flex-1 space-y-1.5 overflow-y-auto overscroll-contain pr-1 max-md:max-h-[calc(70vh-14rem)]">
-            {thread.length === 0 ? (
-              <p className="text-sm text-[#9a9aa3]">No messages yet.</p>
-            ) : (
-              thread.map((item) => {
+            {thread.map((item) => {
                 const mine = item.source === "you";
                 return (
                   <article key={item.id} className={`rounded-xl border border-[#2c2d33] px-2.5 py-1.5 ${mine ? "ml-auto w-fit max-w-[90%]" : ""}`}>
@@ -287,11 +281,9 @@ function ChatDock({
                       </time>
                     </div>
                     {item.body && <p className="mt-1 text-sm whitespace-pre-wrap text-[#e4e4e7]">{item.body}</p>}
-                    {waitingForReply(items, item) && <p className="mt-1 text-sm text-[#9a9aa3]">sent, waiting for reply…</p>}
                   </article>
                 );
-              })
-            )}
+              })}
           </div>
           <form
             className="mt-3 flex gap-2"
@@ -312,7 +304,6 @@ function ChatDock({
               Send
             </Button>
           </form>
-          {!chatRelay && <p className="mt-1.5 text-sm text-[#9a9aa3]">Chat relay not configured</p>}
           {sendError && <p className="mt-1.5 text-sm text-[#f5d547]">{sendError}</p>}
     </div>
   );
@@ -322,12 +313,4 @@ function sourceLabel(source: ActivityItem["source"]) {
   if (source === "you") return "You";
   if (source === "paperboy") return "Paperboy";
   return "Trading.exe";
-}
-
-function emptyCopy(filter: ActivityFilter) {
-  if (filter === "paperboy") return "Nothing from Paperboy yet.";
-  if (filter === "trading.exe") return "Nothing from Trading.exe yet.";
-  if (filter === "trades") return "No trade events yet.";
-  if (filter === "chat") return "No messages yet.";
-  return "No activity yet.";
 }

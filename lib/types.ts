@@ -162,6 +162,48 @@ export type PositionChart = {
   last: number | null;
 };
 
+export type XStockPosition = {
+  ticker: string;
+  side: "long" | "short";
+  entry: number | null;
+  leverage: number | null;
+  notional: number | null;
+  upnl: number | null;
+};
+
+export type XStocksView = {
+  scannedAt: number | null;
+  signalsToday: number | null;
+  signalsWeek: number | null;
+  positions: XStockPosition[];
+  winRate: number | null;
+  realizedPnl: number | null;
+  tradesAt10x: number | null;
+};
+
+export type DcaCoinView = {
+  coin: string;
+  qty: number | null;
+  investedUsd: number | null;
+  avgCost: number | null;
+  price: number | null;
+  valueUsd: number | null;
+  upnl: number | null;
+};
+
+export type DcaView = {
+  status: string;
+  nextRun: number | null;
+  totalInvestedUsd: number | null;
+  valueUsd: number | null;
+  upnl: number | null;
+  coins: DcaCoinView[];
+  buys: number | null;
+  lastBuy: number | null;
+};
+
+export type BotsView = { xstocks: XStocksView; dca: DcaView };
+
 export type DeskPayload = {
   account: AccountPayload;
   spot: SpotPayload;
@@ -170,6 +212,7 @@ export type DeskPayload = {
   charts: PositionChart[];
   items: ActivityItem[];
   trades: Trade[];
+  bots: BotsView;
   serverTime: number;
   chatRelay: boolean;
   forceStopArmed: boolean;

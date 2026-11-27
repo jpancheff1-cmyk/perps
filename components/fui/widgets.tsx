@@ -31,7 +31,7 @@ export function Gauge({ label, ratio }: { label: string; ratio: number | null })
 }
 
 export function Heatmap({ cells }: { cells: { symbol: string; change: number | null }[] }) {
-  if (cells.length === 0) return <p className="fui-muted">No 5m candles yet.</p>;
+  if (cells.length === 0) return null;
   return (
     <div className="grid grid-cols-12 gap-px">
       {cells.map((cell) => {
@@ -45,7 +45,7 @@ export function Heatmap({ cells }: { cells: { symbol: string; change: number | n
 }
 
 export function ExposureBars({ rows }: { rows: { symbol: string; long: number; short: number }[] }) {
-  if (rows.length === 0) return <p className="fui-muted">No position exposure.</p>;
+  if (rows.length === 0) return null;
   const max = Math.max(...rows.map((row) => row.long + row.short), 1);
   return (
     <div className="space-y-1">
@@ -63,7 +63,7 @@ export function ExposureBars({ rows }: { rows: { symbol: string; long: number; s
 }
 
 export function Ecg({ points }: { points: PnlPoint[] }) {
-  if (points.length < 2) return <p className="fui-muted">No equity curve yet.</p>;
+  if (points.length < 2) return null;
   const values = points.map((point) => point.cum);
   const min = Math.min(...values, 0);
   const max = Math.max(...values, 0);
@@ -91,7 +91,7 @@ export function Ecg({ points }: { points: PnlPoint[] }) {
 }
 
 export function Ticker({ items, reduced, bare = false }: { items: string[]; reduced: boolean; bare?: boolean }) {
-  const text = items.length ? items.join("   ·   ") : "NO LIVE PRICES";
+  const text = items.join("   ·   ");
   const moving = items.length > 0 && !reduced;
   return (
     <div className={bare ? "overflow-hidden text-[11px] tracking-wide uppercase" : "overflow-hidden border-t border-[#16324a] bg-[#05060d] text-[11px] tracking-wide text-[#9fdfff] uppercase"}>
@@ -102,7 +102,7 @@ export function Ticker({ items, reduced, bare = false }: { items: string[]; redu
 
 export function Oscillator({ values }: { values: number[] }) {
   const series = values.slice(-42);
-  if (series.length < 3) return <p className="fui-muted">No candles.</p>;
+  if (series.length < 3) return null;
   const max = Math.max(...series.map((value) => Math.abs(value)), 0.0001);
   const width = 280;
   const height = 72;
@@ -127,7 +127,7 @@ export function Oscillator({ values }: { values: number[] }) {
 }
 
 export function AskCurve({ values }: { values: number[] }) {
-  if (values.length < 2) return <p className="fui-muted">No price path.</p>;
+  if (values.length < 2) return null;
   const min = Math.min(...values);
   const max = Math.max(...values);
   const span = max - min || 1;
@@ -147,7 +147,7 @@ export function AskCurve({ values }: { values: number[] }) {
 }
 
 export function PayoffBars({ values }: { values: number[] }) {
-  if (values.length === 0) return <p className="fui-muted">No closed trades.</p>;
+  if (values.length === 0) return null;
   const max = Math.max(...values.map((value) => Math.abs(value)), 1);
   return (
     <svg viewBox={`0 0 ${values.length * 8} 48`} className="h-12 w-full" role="img" aria-label="Trade payoff">

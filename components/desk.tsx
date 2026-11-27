@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ActivityStream } from "@/components/activity-stream";
+import { BotPanels, emptyBots } from "@/components/bots-strip";
 import { ForceStop } from "@/components/force-stop";
 import { AskCurve, Digits, Ecg, ExposureBars, GlobeLink, Heatmap, Oscillator, PayoffBars, Ticker } from "@/components/fui/widgets";
 import { KrakenStrip } from "@/components/kraken-strip";
@@ -20,7 +21,7 @@ import type { DeskPayload, MarketCandle, PositionChart, Trade } from "@/lib/type
 
 const WireGlobe = dynamic(() => import("@/components/fui/globe").then((mod) => mod.WireGlobe), {
   ssr: false,
-  loading: () => <p className="fui-muted">Loading field…</p>,
+  loading: () => null,
 });
 
 const NAV = [
@@ -28,6 +29,8 @@ const NAV = [
   { id: "chart", label: "Chart" },
   { id: "wallet", label: "Wallet" },
   { id: "activity", label: "Tape" },
+  { id: "xstocks", label: "XStocks" },
+  { id: "dca", label: "DCA" },
 ];
 
 export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
@@ -145,9 +148,7 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
         <span className="grid h-7 w-7 place-items-center border border-[#00f0ff] text-[11px] font-bold text-[#00f0ff]">PS</span>
         <div className="min-w-0">
           <h1 className="text-[13px] font-bold tracking-[0.14em] text-[#00f0ff] uppercase">pspspsps // Mission Control</h1>
-          <p className="text-[10px] tracking-wide text-[#8fb4c9] uppercase">Directional · hedge · both sides · never sell</p>
         </div>
-        {demoOn && <span className="border border-[#ffcc00] px-1 text-[10px] font-bold text-[#ffcc00]">DEMO</span>}
         <div className="flex flex-wrap gap-1 text-[11px] uppercase">
           <Stat label="BTC" value={btc} />
           <Stat label="Matched" value={view ? String(openCount) : "—"} />
@@ -183,9 +184,9 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
       </header>
       <div className="g-feed flex items-center gap-2 overflow-hidden border border-[#ff2a2a]/60 bg-[#2a0610] px-2 text-[11px] tracking-wide text-[#ff5a7a] uppercase">
         <span className="shrink-0 font-bold text-[#ff2a2a]">● Live feed</span>
-        <div className="min-w-0 flex-1"><Ticker bare items={feed.length ? feed : ["WAITING FOR THE TAPE"]} reduced={reduced} /></div>
+        <div className="min-w-0 flex-1"><Ticker bare items={feed} reduced={reduced} /></div>
       </div>
-      {error && <p className="text-[11px] text-[#ff2a6a]">The desk could not refresh. Trying again.</p>}
+      <BotPanels bots={view?.bots ?? emptyBots()} />
       <section className="g-wallet fui-panel flex flex-col px-2 py-1">
         <PanelHead title="Wallet" tag={view?.account.connected ? "LIVE" : "OFF"} tone={view?.account.connected ? "green" : "red"} />
         <div className="text-[clamp(1.4rem,2.4vw,2.2rem)] leading-none font-bold text-[#39ff14]">
@@ -235,7 +236,6 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
               </li>
             );
           })}
-          {charts.length === 0 && <li>No per-coin heat yet.</li>}
         </ul>
       </section>
       <section className="g-pay fui-panel flex flex-col px-2 py-1">
@@ -243,7 +243,7 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
         <PayoffBars values={(view?.trades ?? []).map((trade) => trade.pnlUsd).filter((value): value is number => value != null)} />
       </section>
       <section id="chart" className="g-ask fui-panel flex min-h-0 flex-col px-2 py-1">
-        <PanelHead title={`Ask curve · ${focus ? coinName(focus) : "no symbol"}`} tag={focusChart?.last == null ? "—" : formatPrice(focusChart.last)} />
+        <PanelHead title={focus ? `Ask curve · ${coinName(focus)}` : "Ask curve"} tag={focusChart?.last == null ? "—" : formatPrice(focusChart.last)} />
         <div className="min-h-12 flex-1">{bookOpen && view ? <PositionBoard positions={view.account.positions} charts={charts} query={query} selectedSymbol={focus} onSelectSymbol={setSymbol} /> : <AskCurve values={closes} />}</div>
         <button type="button" onClick={() => setBookOpen((open) => !open)} className="text-left text-[10px] uppercase text-[#00f0ff]">{bookOpen ? "Show curve" : "Show book"}</button>
         <dl className="grid grid-cols-3 text-[10px] uppercase text-[#8fb4c9]">
@@ -255,7 +255,7 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
       <section className="g-shell fui-panel relative flex min-h-64 flex-col px-2 py-1">
         <PanelHead title="Neural shell" tag="FAIR-P" />
         <div className="min-h-0 flex-1">
-          {nodes.length === 0 ? <p className="fui-muted">No coins in the book.</p> : <WireGlobe nodes={nodes} active={focus} reduced={reduced} />}
+          {nodes.length > 0 && <WireGlobe nodes={nodes} active={focus} reduced={reduced} />}
         </div>
       </section>
       <section className="g-trades min-h-0 overflow-auto">
@@ -282,7 +282,6 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
               {item.body ? ` · ${item.body}` : ""}
             </p>
           ))}
-          {view && view.items.length === 0 && <p className="fui-muted">The tape is empty.</p>}
           <details>
             <summary className="cursor-pointer text-[10px] text-[#00f0ff] uppercase">Chat</summary>
             {view ? <ActivityStream items={view.items} chatRelay={view.chatRelay} onRefresh={() => void refresh()} query={query} embedded /> : <Loading label="Loading activity…" />}
@@ -337,7 +336,7 @@ function TypedLine({ text, reduced }: { text: string; reduced: boolean }) {
     }, 18);
     return () => window.clearInterval(id);
   }, [reduced, text]);
-  return <p className="mt-2 min-h-10 text-sm text-[#b7fff8]">{text ? text.slice(0, count) || "…" : "No tape yet."}</p>;
+  return <p className="mt-2 min-h-10 text-sm text-[#b7fff8]">{text.slice(0, count)}</p>;
 }
 
 type PeriodId = "day" | "week" | "month";
@@ -447,7 +446,7 @@ function Fact({ label, value }: { label: string; value: string }) {
 }
 
 function CandleStrip({ candles }: { candles: MarketCandle[] }) {
-  if (candles.length < 2) return <p className="fui-muted">No candles.</p>;
+  if (candles.length < 2) return null;
   const min = Math.min(...candles.map((candle) => candle.l));
   const max = Math.max(...candles.map((candle) => candle.h));
   const span = max - min || 1;
@@ -471,7 +470,7 @@ function CandleStrip({ candles }: { candles: MarketCandle[] }) {
 }
 
 function PhaseFan({ points }: { points: number[] }) {
-  if (points.length < 2) return <p className="fui-muted">No phase yet.</p>;
+  if (points.length < 2) return null;
   const min = Math.min(...points);
   const max = Math.max(...points);
   const span = max - min || 1;
@@ -508,9 +507,5 @@ async function loadDesk(): Promise<{ status: number; payload: DeskPayload | null
 }
 
 function Loading({ label }: { label: string }) {
-  return (
-    <section className="fui-panel mt-2 px-3 py-3">
-      <p className="fui-muted">{label}</p>
-    </section>
-  );
+  return <span className="sr-only">{label}</span>;
 }

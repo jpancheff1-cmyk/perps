@@ -34,7 +34,7 @@ export function KrakenStrip({
       title: "Futures",
       sub: "Portfolio",
       value: account.connected ? formatPrice(account.portfolioValue) : "—",
-      hint: account.connected ? "Read only" : "",
+      hint: "",
       tone: account.connected && (account.portfolioValue ?? 0) < 0 ? "down" : account.connected ? "up" : "flat",
       points: [],
       symbol: positions[0]?.symbol ?? "",
@@ -89,7 +89,6 @@ export function KrakenStrip({
 
   return (
     <section className="mt-2">
-      <p className="mb-1.5 text-sm text-[#9a9aa3]">Futures reads stay read-only. Spot and Earn use a separate query key. Nothing here places, edits, or moves funds.</p>
       <div className="flex gap-2 overflow-x-auto pb-1">
         {cards.map((card) => (
           <button
@@ -127,9 +126,7 @@ export function KrakenStrip({
       <div id="wallet" className="mt-2 grid gap-2 lg:grid-cols-2">
         <div className="surface px-3 py-2.5">
           <h3 className="text-[15px] font-semibold">Spot</h3>
-          {!spot.connected ? (
-            <p className="mt-1 text-sm text-[#9a9aa3]">{spot.reason === "not_configured" ? "Connect spot key" : spot.message}</p>
-          ) : (
+          {spot.connected && (
             <>
               <div className="text-lg font-semibold tabular-nums">{formatUsd(spot.totalUsd).replace(/^\+/, "")}</div>
               <ul className="mt-1.5 space-y-0.5 text-sm">
@@ -141,16 +138,13 @@ export function KrakenStrip({
                     </span>
                   </li>
                 ))}
-                {assets.length === 0 && <li className="text-[#9a9aa3]">{needle ? "No matching balances." : "No spot balances."}</li>}
               </ul>
             </>
           )}
         </div>
         <div className="surface px-3 py-2.5">
           <h3 className="text-[15px] font-semibold text-[#f5d547]">Earn</h3>
-          {!earn.connected ? (
-            <p className="mt-1 text-sm text-[#9a9aa3]">{earn.reason === "not_configured" ? "Connect spot key" : earn.message}</p>
-          ) : (
+          {earn.connected && (
             <>
               <div className="text-lg font-semibold tabular-nums">{formatUsd(earn.totalUsd).replace(/^\+/, "")}</div>
               <p className="mt-1 text-sm text-[#9a9aa3]">Rewarded {formatUsd(earn.rewardedUsd)}</p>
@@ -198,7 +192,7 @@ function Arrow({ tone }: { tone: Tone }) {
 }
 
 function Spark({ points, tone, color }: { points: number[]; tone: Tone; color: string }) {
-  if (points.length < 2) return <span className="text-sm text-[#6d6d76]">No 5m</span>;
+  if (points.length < 2) return null;
   const min = Math.min(...points);
   const max = Math.max(...points);
   const span = max - min || 1;
@@ -225,11 +219,7 @@ function SpotOrders({ orders, query }: { orders: SpotOrdersPayload; query: strin
         <h3 className="text-[15px] font-semibold">Open spot orders</h3>
         <span className="rounded-full bg-[#f5d547]/15 px-1.5 text-sm text-[#f5d547]">{rows.length}</span>
       </div>
-      {!orders.connected ? (
-        <p className="text-sm text-[#9a9aa3]">{orders.message}</p>
-      ) : rows.length === 0 ? (
-        <p className="text-sm text-[#9a9aa3]">{query ? "No matching spot orders" : "No open spot orders"}</p>
-      ) : (
+      {orders.connected && rows.length > 0 && (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] text-left text-sm">
             <thead className="text-sm tracking-wide text-[#9a9aa3] uppercase">

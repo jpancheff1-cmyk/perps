@@ -16,11 +16,7 @@ export function OpenFuturesTrades({ account, query = "", settled = [] }: { accou
         <h2 className="text-[11px] tracking-[0.12em] text-[#9fd8ff] uppercase">Live trades</h2>
         <span className="text-[10px] text-[#39ff14] uppercase">{account.connected ? "LIVE" : "OFF"}</span>
       </div>
-      {!account.connected ? (
-        <p>{account.message ?? "Kraken Futures keys are not set on the server."}</p>
-      ) : rows.length === 0 && closed.length === 0 ? (
-        <p>{needle ? "No matching futures trades" : "No open futures trades"}</p>
-      ) : (
+      {account.connected && (rows.length > 0 || closed.length > 0) && (
         <div className="min-h-0 flex-1 space-y-1 overflow-y-auto">
           {rows.map((row) => (
             <article key={row.id} data-trade-row={row.symbol} className="tape-in border border-[#16324a] px-1.5 py-1">

@@ -1,4 +1,4 @@
-import type { AccountPosition, DeskPayload, MarketCandle, PositionChart, Trade } from "./types";
+import type { AccountPosition, BotsView, DeskPayload, MarketCandle, PositionChart, Trade } from "./types";
 
 const COINS = [
   ["PF_XBTUSD", "BTC", 64250],
@@ -98,8 +98,41 @@ export function demoDesk(now = Date.now()): DeskPayload {
       { id: "d5", source: "paperboy", type: "reply", title: "Paperboy", body: "book is quiet.", tradeId: null, trade: null, ts: now - 180_000 },
     ],
     trades,
+    bots: demoBots(now),
     serverTime: now,
     chatRelay: false,
     forceStopArmed: false,
+  };
+}
+
+function demoBots(now: number): BotsView {
+  return {
+    xstocks: {
+      scannedAt: now - 90_000,
+      signalsToday: 4,
+      signalsWeek: 11,
+      positions: [
+        { ticker: "NVDA", side: "long", entry: 142.2, leverage: 10, notional: 2100, upnl: 86.4 },
+        { ticker: "AAPL", side: "short", entry: 228.1, leverage: 5, notional: 900, upnl: -12.5 },
+      ],
+      winRate: 67,
+      realizedPnl: 640.2,
+      tradesAt10x: 6,
+    },
+    dca: {
+      status: "running",
+      nextRun: now + 3_600_000,
+      totalInvestedUsd: 400,
+      valueUsd: 428.5,
+      upnl: 28.5,
+      buys: 16,
+      lastBuy: now - 86_400_000,
+      coins: [
+        { coin: "ZBCN", qty: 12000, investedUsd: 100, avgCost: 0.00833, price: 0.0091, valueUsd: 109.2, upnl: 9.2 },
+        { coin: "PLUME", qty: 800, investedUsd: 100, avgCost: 0.125, price: 0.131, valueUsd: 104.8, upnl: 4.8 },
+        { coin: "VELO", qty: 14000, investedUsd: 100, avgCost: 0.00714, price: 0.0074, valueUsd: 103.6, upnl: 3.6 },
+        { coin: "PEAQ", qty: 2200, investedUsd: 100, avgCost: 0.0455, price: 0.0504, valueUsd: 110.9, upnl: 10.9 },
+      ],
+    },
   };
 }

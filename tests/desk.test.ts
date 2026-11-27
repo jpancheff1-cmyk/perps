@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { NextRequest } from "next/server";
 import { POST as postChat } from "../app/api/chat/route.ts";
 import { applyIngest, readFeed, resetStoreForTests } from "../lib/activity-store.ts";
+import { botsView } from "../lib/bots.ts";
 import { SESSION_COOKIE, checkPassword, readSessionToken, signSession } from "../lib/auth.ts";
 import { resetChatGateForTests } from "../lib/chat.ts";
 import { activityMatches, waitingForReply } from "../lib/feed.ts";
@@ -305,6 +306,71 @@ test("bybit feed, indicators, and the ws client are gone", () => {
     if (/bybit/i.test(text)) hits.push(file);
   }
   assert.deepEqual(hits, []);
+});
+
+test("ingest stores xstocks and dca spot without a tape event", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "desk-bots-"));
+  const previous = process.env.DATA_DIR;
+  process.env.DATA_DIR = dir;
+  resetStoreForTests();
+  const now = 1_700_000_000_000;
+  try {
+    const empty = botsView(new Map(), now);
+    assert.equal(empty.dca.status, "not_started");
+    assert.equal(empty.xstocks.signalsToday, null);
+    assert.equal(empty.dca.buys, null);
+
+    const saved = applyIngest({
+      xstocks: {
+        scanned_at: now - 60_000,
+        signals: [
+          { ts: Math.floor((now - 1_000) / 1000), ticker: "nvda", side: "buy", leverage: 10, status: "sent" },
+          { ts: now - 8 * 86_400_000, ticker: "AAPL", side: "short", status: "sent" },
+        ],
+        positions: [{ ticker: "NVDA", side: "long", entry: 140, leverage: 10, notional: 2000, upnl: 40 }],
+        trades: [
+          { ticker: "NVDA", leverage: 10, pnl_usd: 10, closed_at: now - 2_000 },
+          { ticker: "AAPL", leverage: 5, pnl_usd: -4, closed_at: now - 3_000 },
+        ],
+      },
+      dca_spot: {
+        status: "running",
+        next_run: "2026-11-27T16:00:00Z",
+        total_invested_usd: 50,
+        holdings: [{ coin: "ZBCN", qty: 1000, invested_usd: 25 }],
+        buys: [{ timestamp_utc: "2026-11-26T12:00:00Z", coin: "zbcn", usd_spent: 25, qty: 1000 }],
+      },
+    });
+    assert.equal(saved.ok, true);
+    const view = botsView(new Map([["ZBCN", 0.03]]), now);
+    assert.equal(view.xstocks.signalsToday, 1);
+    assert.equal(view.xstocks.signalsWeek, 1);
+    assert.equal(view.xstocks.positions[0]?.ticker, "NVDA");
+    assert.equal(view.xstocks.winRate, 50);
+    assert.equal(view.xstocks.realizedPnl, 6);
+    assert.equal(view.xstocks.tradesAt10x, 1);
+    assert.equal(view.dca.status, "running");
+    assert.equal(view.dca.buys, 1);
+    assert.equal(view.dca.coins.find((coin) => coin.coin === "ZBCN")?.avgCost, 0.025);
+    assert.equal(view.dca.coins.find((coin) => coin.coin === "ZBCN")?.valueUsd, 30);
+    assert.equal(view.dca.coins.find((coin) => coin.coin === "ZBCN")?.upnl, 5);
+    assert.equal(view.dca.upnl, -20);
+
+    const kept = applyIngest({ dcaSpot: { status: "not_started", holdings: [], buys: [] } });
+    assert.equal(kept.ok, true);
+    assert.equal(botsView(new Map(), now).xstocks.positions.length, 1);
+    assert.equal(botsView(new Map(), now).dca.status, "not_started");
+
+    assert.equal(applyIngest({ xstocks: { signals: "nope" } }).ok, false);
+    assert.equal(botsView(new Map(), now).xstocks.positions.length, 1);
+    assert.equal(applyIngest({ source: "paperboy", type: "order", title: "Nope", xstocks: { signals: [], positions: [], trades: [] } }).ok, false);
+    assert.equal(botsView(new Map(), now).xstocks.signalsToday, 1);
+  } finally {
+    if (previous == null) delete process.env.DATA_DIR;
+    else process.env.DATA_DIR = previous;
+    resetStoreForTests();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 function chatRequest(token: string | null, message: string) {

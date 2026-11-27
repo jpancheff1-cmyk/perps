@@ -69,13 +69,8 @@ export function ForceStop({ armed, onDone, companion, compact = false }: { armed
   if (!armed) {
     return (
       <div className={shell}>
-        <button type="button" disabled title="Set FORCE_STOP_ENABLED to true and add the trade keys." className={`${face} cursor-not-allowed bg-[#7f1d1d] text-white/70`}>
-          {compact ? "STOP" : (
-            <span>
-              {"FORCE STOP "}
-              <span className="max-sm:block">(not armed)</span>
-            </span>
-          )}
+        <button type="button" disabled className={`${face} cursor-not-allowed bg-[#7f1d1d] text-white/70`}>
+          {compact ? "STOP" : "FORCE STOP"}
         </button>
         {companion}
       </div>
@@ -98,7 +93,7 @@ export function ForceStop({ armed, onDone, companion, compact = false }: { armed
         </button>
         {companion}
       </div>
-      <p id="force-stop-hold" className={compact ? "sr-only" : "mt-2 text-sm text-[#fecaca]"}>
+      <p id="force-stop-hold" className="sr-only">
         Hold for 2 seconds. This cancels open futures orders and closes positions with reduce-only market orders. It does not withdraw or transfer.
       </p>
       {message && <p className={compact ? "text-[11px] text-[#fecaca]" : "mt-2 text-sm text-[#fecaca]"}>{message}</p>}

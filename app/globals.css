@@ -55,23 +55,25 @@ body {
     height: 100vh;
     overflow: hidden;
     grid-template-columns: 1.05fr 1.2fr 0.95fr 1.05fr;
-    grid-template-rows: auto auto minmax(0, 0.7fr) minmax(0, 0.82fr) minmax(0, 1.4fr) minmax(0, 0.72fr) minmax(0, 0.95fr) auto;
+    grid-template-rows: auto auto auto minmax(0, 0.62fr) minmax(0, 0.72fr) minmax(0, 1.25fr) minmax(0, 0.62fr) minmax(0, 0.85fr) auto;
     gap: 4px;
   }
   .g-head { grid-area: 1 / 1 / 2 / 5; }
   .g-feed { grid-area: 2 / 1 / 3 / 5; }
-  .g-wallet { grid-area: 3 / 1 / 5 / 2; }
-  .g-osc { grid-area: 3 / 2 / 4 / 4; }
-  .g-heat { grid-area: 3 / 4 / 4 / 5; }
-  .g-pay { grid-area: 4 / 2 / 5 / 3; }
-  .g-ask { grid-area: 4 / 3 / 5 / 5; }
-  .g-shell { grid-area: 5 / 1 / 7 / 3; }
-  .g-trades { grid-area: 5 / 3 / 6 / 5; }
-  .g-quant { grid-area: 6 / 3 / 7 / 5; }
-  .g-state { grid-area: 7 / 1 / 8 / 2; }
-  .g-trace { grid-area: 7 / 2 / 8 / 4; }
-  .g-phase { grid-area: 7 / 4 / 8 / 5; }
-  .g-tick { grid-area: 8 / 1 / 9 / 5; }
+  .g-x { grid-area: 3 / 1 / 4 / 3; }
+  .g-dca { grid-area: 3 / 3 / 4 / 5; }
+  .g-wallet { grid-area: 4 / 1 / 6 / 2; }
+  .g-osc { grid-area: 4 / 2 / 5 / 4; }
+  .g-heat { grid-area: 4 / 4 / 5 / 5; }
+  .g-pay { grid-area: 5 / 2 / 6 / 3; }
+  .g-ask { grid-area: 5 / 3 / 6 / 5; }
+  .g-shell { grid-area: 6 / 1 / 8 / 3; }
+  .g-trades { grid-area: 6 / 3 / 7 / 5; }
+  .g-quant { grid-area: 7 / 3 / 8 / 5; }
+  .g-state { grid-area: 8 / 1 / 9 / 2; }
+  .g-trace { grid-area: 8 / 2 / 9 / 4; }
+  .g-phase { grid-area: 8 / 4 / 9 / 5; }
+  .g-tick { grid-area: 9 / 1 / 10 / 5; }
 }
 
 .fui-panel h2 {

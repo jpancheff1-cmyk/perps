@@ -22,11 +22,7 @@ export function PnlChart({ points }: { points: CurvePoint[] }) {
   }, []);
 
   if (points.length === 0) {
-    return (
-      <div ref={ref} className="flex h-56 items-center justify-center rounded-2xl border border-[#2e3a66] bg-[#0c1224] text-sm text-[#b7b3d9] sm:h-72">
-        No closed trades yet
-      </div>
-    );
+    return <div ref={ref} className="h-56 rounded-2xl border border-[#2e3a66] bg-[#0c1224] sm:h-72" />;
   }
 
   const height = width < 640 ? 240 : 300;

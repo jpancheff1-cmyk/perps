@@ -34,11 +34,7 @@ export function PositionBoard({ positions, charts, query = "", selectedSymbol = 
           ))}
         </div>
       </div>
-      {position ? (
-        <PositionCard position={position} chart={chart} mark={mark} chartId={`p${index}`} />
-      ) : (
-        <p className="py-8 text-center text-[15px] text-[#9a9aa3]">{needle ? "No matching position to chart." : "No open position to chart. The desk only has 5-minute candles for live positions."}</p>
-      )}
+      {position ? <PositionCard position={position} chart={chart} mark={mark} chartId={`p${index}`} /> : null}
     </section>
   );
 }
@@ -62,11 +58,7 @@ function PositionCard({ position, chart, mark, chartId }: { position: AccountPos
         <Fact label="Liquidation" value={formatPrice(position.liquidationPrice)} />
         <Fact label="RSI 14" value={chart?.rsi == null ? "—" : chart.rsi.toFixed(1)} />
       </dl>
-      {chart && chart.candles.length > 1 ? (
-        <PriceChart chart={chart} entry={position.entryPrice} liq={position.liquidationPrice} mark={mark} chartId={chartId} />
-      ) : (
-        <p className="mt-3 text-[15px] text-[#b7b3d9]">Waiting for 5m candles.</p>
-      )}
+      {chart && chart.candles.length > 1 ? <PriceChart chart={chart} entry={position.entryPrice} liq={position.liquidationPrice} mark={mark} chartId={chartId} /> : null}
       <RsiGauge value={chart?.rsi ?? null} />
       {chart && chart.liqClusters.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-2">

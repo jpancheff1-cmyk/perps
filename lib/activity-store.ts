@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
+import { planBotsPatch, resetBotsForTests } from "./bots";
 import { finite } from "./format";
 import { acceptLevels, resetLevelsForTests } from "./levels";
 import { tradeTime } from "./pnl";
@@ -34,6 +35,7 @@ function tradesFile() {
 export function resetStoreForTests() {
   cache = null;
   resetLevelsForTests();
+  resetBotsForTests();
 }
 
 function readJson(file: string): unknown {
@@ -321,6 +323,14 @@ function upsertTrade(raw: unknown, type: ActivityType, ts: number, trades: Trade
 export function applyIngest(body: unknown, now = Date.now()): { ok: true } | { ok: false; error: string } {
   const input = asRecord(body);
   if (!input) return { ok: false, error: "Body must be a JSON object." };
+  const bots = planBotsPatch(input);
+  if (!bots.ok) return bots;
+  const hasEvent = input.source != null || input.type != null || input.title != null || input.trade != null;
+  if (!hasEvent) {
+    if (!bots.present) return { ok: false, error: "Source must be paperboy, trading.exe, or you." };
+    bots.save();
+    return { ok: true };
+  }
   if (!isSource(input.source)) return { ok: false, error: "Source must be paperboy, trading.exe, or you." };
   if (!isType(input.type) || !TYPES[input.source].has(input.type)) {
     const error =
@@ -361,6 +371,7 @@ export function applyIngest(body: unknown, now = Date.now()): { ok: true } | { o
   const items = [item, ...store.items].sort((a, b) => b.ts - a.ts || a.id.localeCompare(b.id)).slice(0, ACTIVITY_LIMIT);
   const nextTrades = trades.sort((a, b) => tradeTime(b) - tradeTime(a) || a.id.localeCompare(b.id)).slice(0, TRADE_LIMIT);
   save({ items, trades: nextTrades });
+  if (bots.present) bots.save();
   return { ok: true };
 }
 

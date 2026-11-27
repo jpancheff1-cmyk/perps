@@ -19,6 +19,12 @@ test("phone layout keeps the viewport, a closable dock, and a lighter background
   const desk = read("components/desk.tsx");
   assert.match(desk, /fui-grid/);
   assert.match(desk, /safe-area-inset-bottom/);
+  assert.match(desk, /get\("demo"\) === "1"/);
+  assert.equal(desk.includes(">DEMO<"), false);
+  assert.equal(desk.includes("Directional · hedge"), false);
+
+  const strip = read("components/kraken-strip.tsx");
+  assert.equal(/read-only/i.test(strip), false);
 
   const dock = read("components/activity-stream.tsx");
   assert.match(dock, /sheetOpen/);
@@ -34,6 +40,7 @@ test("phone layout keeps the viewport, a closable dock, and a lighter background
   assert.match(stop, /setPointerCapture/);
   assert.match(stop, /onPointerCancel=\{stopHold\}/);
   assert.match(stop, /2000/);
+  assert.match(stop, /id="force-stop-hold" className="sr-only"/);
   assert.equal(stop.includes("Type FORCE STOP"), false);
   assert.equal(stop.includes("<input"), false);
 
