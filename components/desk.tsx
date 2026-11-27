@@ -4,19 +4,19 @@ import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ActivityStream } from "@/components/activity-stream";
-import { CoinField } from "@/components/coin-field";
 import { ForceStop } from "@/components/force-stop";
-import { Digits, Ecg, ExposureBars, Gauge, GlobeLink, Heatmap, Ticker } from "@/components/fui/widgets";
+import { AskCurve, Digits, Ecg, ExposureBars, GlobeLink, Heatmap, Oscillator, PayoffBars, Ticker } from "@/components/fui/widgets";
 import { KrakenStrip } from "@/components/kraken-strip";
 import { OneUp } from "@/components/one-up";
 import { PositionBoard } from "@/components/position-board";
 import { PerformancePanel } from "@/components/performance-panel";
 import { OpenFuturesTrades } from "@/components/trades-panel";
+import { demoDesk } from "@/lib/demo-desk";
 import { formatPrice, formatUsd } from "@/lib/format";
 import { realizedSeries } from "@/lib/pnl";
 import { CLIENT_POLL_MS } from "@/lib/poll";
 import { formatSofiaTime } from "@/lib/time";
-import type { DeskPayload, PositionChart, Trade } from "@/lib/types";
+import type { DeskPayload, MarketCandle, PositionChart, Trade } from "@/lib/types";
 
 const WireGlobe = dynamic(() => import("@/components/fui/globe").then((mod) => mod.WireGlobe), {
   ssr: false,
@@ -30,7 +30,7 @@ const NAV = [
   { id: "activity", label: "Tape" },
 ];
 
-export function Desk() {
+export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
   const router = useRouter();
   const [state, setState] = useState<DeskPayload | null>(null);
   const [error, setError] = useState(false);
@@ -41,6 +41,8 @@ export function Desk() {
   const [period, setPeriod] = useState<PeriodId>("day");
   const [symbol, setSymbol] = useState<string | null>(null);
   const [reduced, setReduced] = useState(false);
+  const [demoOn, setDemoOn] = useState(false);
+  const [bookOpen, setBookOpen] = useState(false);
 
   async function refresh() {
     try {
@@ -59,6 +61,12 @@ export function Desk() {
       setError(true);
     }
   }
+
+  useEffect(() => {
+    if (!allowDemo) return;
+    const flagged = new URLSearchParams(window.location.search).get("demo") === "1";
+    setDemoOn(flagged || process.env.NODE_ENV === "development");
+  }, [allowDemo]);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -109,160 +117,187 @@ export function Desk() {
     router.refresh();
   }
 
-  const total = state ? connectedTotal(state) : null;
-  const periods = state ? periodPnl(state.trades) : { day: null, week: null, month: null };
+  const [fixture] = useState(() => demoDesk());
+  const view = demoOn ? fixture : state;
+  const total = view ? connectedTotal(view) : null;
+  const periods = view ? periodPnl(view.trades) : { day: null, week: null, month: null };
   const activePeriod = periods[period];
-  const charts = state?.charts ?? [];
-  const nodes = globeNodes(charts, state);
+  const charts = view?.charts ?? [];
+  const nodes = globeNodes(charts, view);
   const focus = symbol ?? nodes[0]?.symbol ?? null;
-  const btc = quote(charts, state, "BTC");
-  const eth = quote(charts, state, "ETH");
-  const openCount = state?.account.positions.filter((position) => position.size).length ?? 0;
-  const marginUsed = marginRatio(state);
-  const exposure = exposureRatio(state);
-  const heat = heatmap(charts);
-  const bars = exposureRows(state);
-  const curve = state ? realizedSeries(state.trades) : [];
-  const tape = tickerItems(charts, state);
+  const focusChart = charts.find((chart) => chart.symbol === focus) ?? charts[0];
+  const closes = focusChart?.candles.map((candle) => candle.c) ?? [];
+  const returns = closes.slice(1).map((close, index) => close - closes[index]);
+  const btc = quote(charts, view, "BTC");
+  const openCount = view?.account.positions.filter((position) => position.size).length ?? 0;
+  const heat = fillCells(charts);
+  const bars = exposureRows(view);
+  const curve = view ? realizedSeries(view.trades) : [];
+  const tape = tickerItems(charts, view);
+  const feed = (view?.items ?? []).map((item) => item.title).filter(Boolean);
+  const imbalance = bookImbalance(view);
+  const direction = view?.account.connected ? view.account.unrealizedPnl : activePeriod;
 
   return (
-    <div className="fui-grid relative z-10 min-h-screen bg-[#070710] text-[#e7f6ff]">
-      <CoinField />
+    <div className="fui-grid fui-screen relative z-10 bg-[#070710] text-[#e7f6ff] pb-[env(safe-area-inset-bottom)]">
       <GlobeLink symbol={focus} reduced={reduced} />
-      <div className="relative z-10 px-2 pt-2 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:px-3 md:pb-3">
-        <header className="fui-panel mb-2 flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2">
-          <div className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-[#ff2a2a]" aria-hidden />
-            <h1 className="text-sm font-bold tracking-[0.16em] text-[#00f0ff] uppercase">Mission Control</h1>
-          </div>
-          <div className="flex flex-wrap gap-3 text-[13px] uppercase">
-            <Stat label="Equity" value={total == null ? "—" : formatUsd(total).replace(/^\+/, "")} />
-            <Stat label="Open" value={state ? String(openCount) : "—"} />
-            <Stat label="Today" value={periods.day == null ? "—" : formatUsd(periods.day)} />
-            <Stat label="BTC" value={btc} />
-            <Stat label="ETH" value={eth} />
-          </div>
-          <div className="ml-auto flex flex-wrap items-center gap-2">
-            <nav className="flex flex-wrap gap-1" aria-label="Sections">
-              {NAV.map((item) => (
-                <a key={item.id} href={`#${item.id}`} aria-current={section === item.id ? "true" : undefined} onClick={() => setSection(item.id)} className={`rounded px-2 py-1 text-[13px] uppercase ${section === item.id ? "bg-[#00f0ff]/15 text-[#00f0ff]" : "text-[#8fb4c9] hover:text-[#00f0ff]"}`}>
-                  {item.label}
-                </a>
-              ))}
-            </nav>
-            {state && <OneUp items={state.items} trades={state.trades} />}
-            <span className="text-sm text-[#00f0ff] tabular-nums">{clock || "—"} Sofia</span>
-            <button type="button" onClick={() => void lock()} className="rounded border border-[#16324a] px-2 py-1 text-[13px] uppercase hover:border-[#00f0ff]">
-              Lock
-            </button>
-          </div>
-        </header>
-        <label className="mb-2 block">
-          <span className="sr-only">Search the desk</span>
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="SEARCH SYMBOLS, ORDERS, ACTIVITY"
-            className="h-9 w-full border border-[#16324a] bg-[#05060d] px-3 text-sm text-[#e7f6ff] uppercase outline-none placeholder:text-[#5f7d90] focus:border-[#00f0ff]"
-          />
-        </label>
-        {error && <p className="mb-2 text-sm text-[#ff2a6a]">The desk could not refresh. Trying again.</p>}
-        {state ? (
+      <header className="g-head fui-panel flex flex-wrap items-center gap-x-3 gap-y-1 px-2 py-1">
+        <span className="grid h-7 w-7 place-items-center border border-[#00f0ff] text-[11px] font-bold text-[#00f0ff]">PS</span>
+        <div className="min-w-0">
+          <h1 className="text-[13px] font-bold tracking-[0.14em] text-[#00f0ff] uppercase">pspspsps // Mission Control</h1>
+          <p className="text-[10px] tracking-wide text-[#8fb4c9] uppercase">Directional · hedge · both sides · never sell</p>
+        </div>
+        {demoOn && <span className="border border-[#ffcc00] px-1 text-[10px] font-bold text-[#ffcc00]">DEMO</span>}
+        <div className="flex flex-wrap gap-1 text-[11px] uppercase">
+          <Stat label="BTC" value={btc} />
+          <Stat label="Matched" value={view ? String(openCount) : "—"} />
+          <Stat label="Fair" value={periods.day == null ? "—" : formatUsd(periods.day)} />
+          <Stat label="Imbalance" value={imbalance} />
+        </div>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <span className="text-lg font-bold text-[#00f0ff] tabular-nums">{clock || "—"}</span>
+          <nav className="flex gap-1" aria-label="Sections">
+            {NAV.map((item) => (
+              <a key={item.id} href={`#${item.id}`} aria-current={section === item.id ? "true" : undefined} onClick={() => setSection(item.id)} className={`px-1 text-[10px] uppercase ${section === item.id ? "text-[#00f0ff]" : "text-[#8fb4c9]"}`}>
+                {item.label}
+              </a>
+            ))}
+          </nav>
+          <label>
+            <span className="sr-only">Search the desk</span>
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="SEARCH" className="h-7 w-24 border border-[#16324a] bg-transparent px-1 text-[11px] uppercase outline-none focus:border-[#00f0ff]" />
+          </label>
+          {view && <OneUp items={view.items} trades={view.trades} />}
           <ForceStop
-            armed={state.forceStopArmed}
+            compact
+            armed={state?.forceStopArmed ?? false}
             onDone={() => void refresh()}
             companion={
-              <button type="button" onClick={() => setPerformanceOpen(true)} className="grid min-h-14 w-full place-items-center rounded-2xl bg-[#00f0ff] px-2 text-center text-[17px] font-black tracking-wide text-[#041018] uppercase transition hover:brightness-110 active:brightness-95 sm:text-[19px]">
+              <button type="button" onClick={() => setPerformanceOpen(true)} className="h-7 bg-[#00f0ff] px-2 text-[11px] font-bold tracking-wide text-[#041018] uppercase">
                 Performance
               </button>
             }
           />
-        ) : null}
-        <div className="mt-2 grid gap-2 xl:grid-cols-[minmax(240px,1fr)_minmax(280px,1.3fr)_minmax(220px,0.9fr)]">
-          <section className="fui-panel px-3 py-3">
-            <h2>Equity</h2>
-            <div className="fui-digits mt-2">
-              <Digits value={total == null ? "—" : formatUsd(total).replace(/^\+/, "")} />
-            </div>
-            <div className="mt-2 flex gap-1" role="group" aria-label="Realized window">
-              <Period id="day" label="Today" value={periods.day} active={period === "day"} onPick={setPeriod} />
-              <Period id="week" label="7D" value={periods.week} active={period === "week"} onPick={setPeriod} />
-              <Period id="month" label="30D" value={periods.month} active={period === "month"} onPick={setPeriod} />
-            </div>
-            <p className="mt-1 text-[13px] text-[#8fb4c9]">Window {formatUsd(activePeriod)} from closed tape trades.</p>
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <Gauge label="Margin used" ratio={marginUsed} />
-              <Gauge label="Exposure" ratio={exposure} />
-            </div>
-          </section>
-          <section id="chart" className="fui-panel min-w-0 px-2 py-2">
-            <h2 className="px-1">Ask curve · {focus ? coinName(focus) : "no symbol"}</h2>
-            {state ? <PositionBoard positions={state.account.positions} charts={charts} query={query} selectedSymbol={focus} onSelectSymbol={setSymbol} /> : <Loading label="Loading the chart…" />}
-          </section>
-          <section className="fui-panel px-3 py-3">
-            <h2>Heat</h2>
-            <div className="mt-2">
-              <Heatmap cells={heat} />
-            </div>
-            <h2 className="mt-3">Exposure</h2>
-            <div className="mt-2">
-              <ExposureBars rows={bars} />
-            </div>
-          </section>
+          <button type="button" onClick={() => void lock()} className="h-7 border border-[#16324a] px-2 text-[11px] uppercase">Lock</button>
         </div>
-        <div className="mt-2 grid gap-2 lg:grid-cols-[minmax(220px,0.8fr)_minmax(0,1.2fr)]">
-          <section className="fui-panel h-72 px-2 py-2">
-            <h2 className="px-1">Field</h2>
-            <div className="h-60">
-              {nodes.length === 0 ? <p className="fui-muted px-2">No coins in the book.</p> : <WireGlobe nodes={nodes} active={focus} reduced={reduced} />}
-            </div>
-          </section>
-          <section className="min-w-0">
-            <h2 className="fui-label mb-1">Live trades</h2>
-            {state ? <OpenFuturesTrades account={state.account} query={query} /> : <Loading label="Loading trades…" />}
-          </section>
+      </header>
+      <div className="g-feed flex items-center gap-2 overflow-hidden border border-[#ff2a2a]/60 bg-[#2a0610] px-2 text-[11px] tracking-wide text-[#ff5a7a] uppercase">
+        <span className="shrink-0 font-bold text-[#ff2a2a]">● Live feed</span>
+        <div className="min-w-0 flex-1"><Ticker bare items={feed.length ? feed : ["WAITING FOR THE TAPE"]} reduced={reduced} /></div>
+      </div>
+      {error && <p className="text-[11px] text-[#ff2a6a]">The desk could not refresh. Trying again.</p>}
+      <section className="g-wallet fui-panel flex flex-col px-2 py-1">
+        <PanelHead title="Wallet" tag={view?.account.connected ? "LIVE" : "OFF"} tone={view?.account.connected ? "green" : "red"} />
+        <div className="text-[clamp(1.4rem,2.4vw,2.2rem)] leading-none font-bold text-[#39ff14]">
+          <Digits value={total == null ? "—" : formatUsd(total)} />
         </div>
-        <div id="balances" className="mt-2">
-          {state ? (
-            <KrakenStrip
-              account={state.account}
-              spot={state.spot}
-              earn={state.earn}
-              spotOrders={state.spotOrders}
-              charts={charts}
-              query={query}
-              selected={focus}
-              onSelect={(next) => {
-                setSymbol(next);
-                setSection("chart");
-              }}
-            />
+        <dl className="mt-1 grid grid-cols-2 gap-x-2 text-[11px] uppercase">
+          <Fact label="Unrealized" value={view?.account.connected ? formatUsd(view.account.unrealizedPnl) : "—"} />
+          <Fact label="Margin" value={view?.account.connected ? formatUsd(view.account.availableMargin) : "—"} />
+          <Fact label="Spot" value={view?.spot.connected && view.spot.totalUsd != null ? formatUsd(view.spot.totalUsd) : "—"} />
+          <Fact label="Earn" value={view?.earn.connected && view.earn.totalUsd != null ? formatUsd(view.earn.totalUsd) : "—"} />
+          <Fact label="Open" value={view ? String(openCount) : "—"} />
+          <Fact label="Today" value={periods.day == null ? "—" : formatUsd(periods.day)} />
+        </dl>
+        <div className="mt-1 flex gap-1" role="group" aria-label="Realized window">
+          <Period id="day" label="1D" value={periods.day} active={period === "day"} onPick={setPeriod} />
+          <Period id="week" label="7D" value={periods.week} active={period === "week"} onPick={setPeriod} />
+          <Period id="month" label="30D" value={periods.month} active={period === "month"} onPick={setPeriod} />
+        </div>
+        <details id="wallet" className="mt-1 min-h-0">
+          <summary className="cursor-pointer text-[10px] text-[#00f0ff] uppercase">Spot · earn · orders</summary>
+          {view ? (
+            <div className="max-h-40 overflow-auto">
+              <KrakenStrip account={view.account} spot={view.spot} earn={view.earn} spotOrders={view.spotOrders} charts={charts} query={query} selected={focus} onSelect={setSymbol} />
+            </div>
           ) : (
             <Loading label="Loading the account…" />
           )}
+        </details>
+      </section>
+      <section className="g-osc fui-panel flex flex-col px-2 py-1">
+        <PanelHead title="Model-book edge oscillator" tag={focus ? coinName(focus) : "—"} />
+        <div className="min-h-16 flex-1">
+          <Oscillator values={returns} />
         </div>
-        <div className="mt-2 grid gap-2 lg:grid-cols-3">
-          <section className="fui-panel px-3 py-2">
-            <h2>Curve</h2>
-            <Ecg points={curve} />
-          </section>
-          <section className="fui-panel px-3 py-2">
-            <h2>Readout</h2>
-            <div className="mt-2 text-sm uppercase text-[#8fb4c9]">Realized window</div>
-            <div className={`text-2xl font-bold ${activePeriod == null ? "text-[#8fb4c9]" : activePeriod >= 0 ? "text-[#39ff14]" : "text-[#ff2a6a]"}`}>
-              <Digits value={activePeriod == null ? "—" : formatUsd(activePeriod)} />
-            </div>
-            <div className="mt-2 text-sm uppercase text-[#8fb4c9]">Unrealized</div>
-            <div className={`text-2xl font-bold ${(state?.account.unrealizedPnl ?? 0) < 0 ? "text-[#ff2a6a]" : "text-[#39ff14]"}`}>
-              <Digits value={state?.account.connected ? formatUsd(state.account.unrealizedPnl) : "—"} />
-            </div>
-          </section>
-          <section className="fui-panel px-3 py-2">
-            <h2>Trace</h2>
-            <TypedLine text={state?.items[0]?.body || state?.items[0]?.title || ""} reduced={reduced} />
-          </section>
+      </section>
+      <section className="g-heat fui-panel flex flex-col px-2 py-1">
+        <PanelHead title="Fill arrival" tag="EDGE" tone="yellow" />
+        <Heatmap cells={heat} />
+        <ul className="mt-1 space-y-0.5 text-[11px] uppercase text-[#8fb4c9]">
+          {charts.slice(0, 5).map((chart) => {
+            const first = chart.candles[0]?.c;
+            const change = first && chart.last ? ((chart.last - first) / first) * 100 : null;
+            return (
+              <li key={chart.symbol} className="flex justify-between gap-2">
+                <span>{coinName(chart.symbol)}</span>
+                <span className={change == null ? "" : change >= 0 ? "text-[#ffcc00]" : "text-[#6aa7ff]"}>{change == null ? "—" : `${change.toFixed(2)}%`}</span>
+              </li>
+            );
+          })}
+          {charts.length === 0 && <li>No per-coin heat yet.</li>}
+        </ul>
+      </section>
+      <section className="g-pay fui-panel flex flex-col px-2 py-1">
+        <PanelHead title="Payoff" tag="TAPE" />
+        <PayoffBars values={(view?.trades ?? []).map((trade) => trade.pnlUsd).filter((value): value is number => value != null)} />
+      </section>
+      <section id="chart" className="g-ask fui-panel flex min-h-0 flex-col px-2 py-1">
+        <PanelHead title={`Ask curve · ${focus ? coinName(focus) : "no symbol"}`} tag={focusChart?.last == null ? "—" : formatPrice(focusChart.last)} />
+        <div className="min-h-12 flex-1">{bookOpen && view ? <PositionBoard positions={view.account.positions} charts={charts} query={query} selectedSymbol={focus} onSelectSymbol={setSymbol} /> : <AskCurve values={closes} />}</div>
+        <button type="button" onClick={() => setBookOpen((open) => !open)} className="text-left text-[10px] uppercase text-[#00f0ff]">{bookOpen ? "Show curve" : "Show book"}</button>
+        <dl className="grid grid-cols-3 text-[10px] uppercase text-[#8fb4c9]">
+          <Fact label="Support" value={focusChart?.support == null ? "—" : formatPrice(focusChart.support)} />
+          <Fact label="Last" value={focusChart?.last == null ? "—" : formatPrice(focusChart.last)} />
+          <Fact label="Resistance" value={focusChart?.resistance == null ? "—" : formatPrice(focusChart.resistance)} />
+        </dl>
+      </section>
+      <section className="g-shell fui-panel relative flex min-h-64 flex-col px-2 py-1">
+        <PanelHead title="Neural shell" tag="FAIR-P" />
+        <div className="min-h-0 flex-1">
+          {nodes.length === 0 ? <p className="fui-muted">No coins in the book.</p> : <WireGlobe nodes={nodes} active={focus} reduced={reduced} />}
         </div>
-        {state ? <ActivityStream items={state.items} chatRelay={state.chatRelay} onRefresh={() => void refresh()} query={query} /> : <Loading label="Loading activity…" />}
+      </section>
+      <section className="g-trades min-h-0 overflow-auto">
+        {view ? <OpenFuturesTrades account={view.account} settled={view.trades.filter((trade) => trade.status === "closed").slice(0, 4)} query={query} /> : <Loading label="Loading trades…" />}
+      </section>
+      <section className="g-quant fui-panel flex min-h-0 flex-col px-2 py-1">
+        <PanelHead title="Quant metrics" tag="INVENTORY" tone="yellow" />
+        <div className="grid min-h-0 flex-1 grid-cols-[1.2fr_1fr] gap-1">
+          <CandleStrip candles={focusChart?.candles.slice(-28) ?? []} />
+          <ExposureBars rows={bars} />
+        </div>
+      </section>
+      <section className="g-state fui-panel flex min-h-0 flex-col px-2 py-1">
+        <PanelHead title="State-space estimator" tag="KALMAN" />
+        <div className="min-h-0 flex-1"><Ecg points={curve} /></div>
+      </section>
+      <section id="activity" className="g-trace fui-panel flex min-h-0 flex-col px-2 py-1">
+        <PanelHead title="Decision trace" tag="LOG" tone="green" />
+        <div className="min-h-0 flex-1 overflow-auto text-[11px] leading-tight">
+          {(view?.items ?? []).slice(0, 8).map((item) => (
+            <p key={item.id} className={item.type === "close" ? "text-[#ffcc00]" : item.type === "fill" ? "text-[#39ff14]" : "text-[#9fd8ff]"}>
+              <span className="text-[#5f7d90]">{new Date(item.ts).toISOString().slice(11, 16)} </span>
+              {item.title}
+              {item.body ? ` · ${item.body}` : ""}
+            </p>
+          ))}
+          {view && view.items.length === 0 && <p className="fui-muted">The tape is empty.</p>}
+          <details>
+            <summary className="cursor-pointer text-[10px] text-[#00f0ff] uppercase">Chat</summary>
+            {view ? <ActivityStream items={view.items} chatRelay={view.chatRelay} onRefresh={() => void refresh()} query={query} embedded /> : <Loading label="Loading activity…" />}
+          </details>
+        </div>
+      </section>
+      <section id="balances" className="g-phase fui-panel flex min-h-0 flex-col px-2 py-1">
+        <PanelHead title="Inventory phase portrait" tag="HEDGE" tone="yellow" />
+        <div className="min-h-0 flex-1"><PhaseFan points={curve.map((point) => point.cum)} /></div>
+        <div className={`text-[clamp(1.3rem,2vw,1.8rem)] leading-none font-bold ${direction == null ? "text-[#8fb4c9]" : direction < 0 ? "text-[#ff2a6a]" : "text-[#39ff14]"}`}>
+          {direction == null ? "—" : direction < 0 ? "DOWN" : "UP"}
+        </div>
+        <div className="text-[12px] text-[#e7f6ff]"><Digits value={direction == null ? "—" : formatUsd(direction)} /></div>
+      </section>
+      <div className="g-tick">
         <Ticker items={tape} reduced={reduced} />
       </div>
       {performanceOpen ? <PerformancePanel onClose={() => setPerformanceOpen(false)} /> : null}
@@ -270,10 +305,20 @@ export function Desk() {
   );
 }
 
+function PanelHead({ title, tag, tone = "cyan" }: { title: string; tag: string; tone?: "cyan" | "green" | "yellow" | "red" }) {
+  const color = tone === "green" ? "text-[#39ff14]" : tone === "yellow" ? "text-[#ffcc00]" : tone === "red" ? "text-[#ff2a6a]" : "text-[#00f0ff]";
+  return (
+    <div className="mb-1 flex items-center justify-between gap-2">
+      <h2 className="truncate text-[11px] tracking-[0.12em] text-[#9fd8ff] uppercase">{title}</h2>
+      <span className={`shrink-0 text-[10px] uppercase ${color}`}>{tag}</span>
+    </div>
+  );
+}
+
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <span>
-      <span className="text-[#5f7d90]">{label} </span>
+    <span className="border border-[#16324a] px-1.5 py-0.5">
+      <span className="block text-[9px] text-[#5f7d90]">{label}</span>
       <span className="text-[#e7f6ff]">{value}</span>
     </span>
   );
@@ -300,7 +345,7 @@ type PeriodId = "day" | "week" | "month";
 function Period({ id, label, value, active, onPick }: { id: PeriodId; label: string; value: number | null; active: boolean; onPick: (id: PeriodId) => void }) {
   const tone = value == null || value === 0 ? "text-[#8fb4c9]" : value > 0 ? "text-[#39ff14]" : "text-[#ff2a6a]";
   return (
-    <button type="button" aria-pressed={active} onClick={() => onPick(id)} className={`rounded border px-2 py-1 text-left text-[13px] uppercase ${active ? "border-[#00f0ff] text-[#00f0ff]" : "border-[#16324a] text-[#8fb4c9]"}`}>
+    <button type="button" aria-pressed={active} onClick={() => onPick(id)} className={`border px-1.5 py-0.5 text-left text-[10px] uppercase ${active ? "border-[#00f0ff] text-[#00f0ff]" : "border-[#16324a] text-[#8fb4c9]"}`}>
       {label}
       <div className={`text-sm ${tone}`}>{value == null ? "—" : formatUsd(value)}</div>
     </button>
@@ -330,15 +375,18 @@ function quote(charts: PositionChart[], state: DeskPayload | null, coin: string)
   return "—";
 }
 
-function heatmap(charts: PositionChart[]) {
-  return charts
-    .filter((chart) => chart.candles.length > 1)
-    .map((chart) => {
-      const first = chart.candles[0]?.c;
-      const last = chart.candles[chart.candles.length - 1]?.c;
-      const change = first && last ? ((last - first) / first) * 100 : null;
-      return { symbol: coinName(chart.symbol), change };
-    });
+function fillCells(charts: PositionChart[]) {
+  const cells: { symbol: string; change: number | null }[] = [];
+  for (const chart of charts) {
+    const candles = chart.candles.slice(-12);
+    for (let index = 1; index < candles.length; index += 1) {
+      const previous = candles[index - 1]?.c;
+      const close = candles[index]?.c;
+      const change = previous && close ? ((close - previous) / previous) * 100 : null;
+      cells.push({ symbol: `${coinName(chart.symbol)}-${index}`, change });
+    }
+  }
+  return cells;
 }
 
 function exposureRows(state: DeskPayload | null) {
@@ -372,6 +420,68 @@ function exposureRatio(state: DeskPayload | null) {
   const notion = exposureRows(state).reduce((sum, row) => sum + row.long + row.short, 0);
   if (notion <= 0) return null;
   return Math.min(1, notion / state.account.portfolioValue);
+}
+
+function bookImbalance(state: DeskPayload | null) {
+  if (!state?.account.connected) return "—";
+  let long = 0;
+  let short = 0;
+  for (const position of state.account.positions) {
+    if (position.size == null || position.markPrice == null) continue;
+    const notion = Math.abs(position.size * position.markPrice);
+    if (position.side === "short") short += notion;
+    else long += notion;
+  }
+  const total = long + short;
+  if (total <= 0) return "—";
+  return `${(((long - short) / total) * 100).toFixed(1)}%`;
+}
+
+function Fact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-[#5f7d90]">{label}</dt>
+      <dd className="truncate text-[#e7f6ff]">{value}</dd>
+    </div>
+  );
+}
+
+function CandleStrip({ candles }: { candles: MarketCandle[] }) {
+  if (candles.length < 2) return <p className="fui-muted">No candles.</p>;
+  const min = Math.min(...candles.map((candle) => candle.l));
+  const max = Math.max(...candles.map((candle) => candle.h));
+  const span = max - min || 1;
+  const width = 160;
+  const height = 70;
+  const slot = width / candles.length;
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} className="h-full w-full" role="img" aria-label="Recent candles">
+      {candles.map((candle, index) => {
+        const up = candle.c >= candle.o;
+        const y = (price: number) => height - ((price - min) / span) * (height - 4);
+        return (
+          <g key={candle.t}>
+            <line x1={index * slot + slot / 2} x2={index * slot + slot / 2} y1={y(candle.h)} y2={y(candle.l)} stroke={up ? "#39ff14" : "#ff2a6a"} strokeWidth="1" />
+            <rect x={index * slot + 1} y={y(Math.max(candle.o, candle.c))} width={Math.max(1, slot - 2)} height={Math.max(1, Math.abs(y(candle.o) - y(candle.c)))} fill={up ? "#39ff14" : "#ff2a6a"} />
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+function PhaseFan({ points }: { points: number[] }) {
+  if (points.length < 2) return <p className="fui-muted">No phase yet.</p>;
+  const min = Math.min(...points);
+  const max = Math.max(...points);
+  const span = max - min || 1;
+  return (
+    <svg viewBox="0 0 160 64" className="h-full min-h-16 w-full" role="img" aria-label="Phase portrait">
+      {points.map((value, index) => (
+        <line key={index} x1="6" y1="60" x2={16 + (index / (points.length - 1)) * 136} y2={60 - ((value - min) / span) * 52} stroke={index % 2 ? "#ff8800" : "#ffcc00"} strokeWidth="0.7" />
+      ))}
+    </svg>
+  );
 }
 
 function connectedTotal(state: DeskPayload) {

@@ -29,7 +29,7 @@ const TYPE_LABEL: Record<ActivityItem["type"], string> = {
   levels: "Levels",
 };
 
-export function ActivityStream({ items, chatRelay, onRefresh, query = "" }: { items: ActivityItem[]; chatRelay: boolean; onRefresh: () => void; query?: string }) {
+export function ActivityStream({ items, chatRelay, onRefresh, query = "", embedded = false }: { items: ActivityItem[]; chatRelay: boolean; onRefresh: () => void; query?: string; embedded?: boolean }) {
   const router = useRouter();
   const [filter, setFilter] = useState<ActivityFilter>("all");
   const [baseline, setBaseline] = useState<Set<string> | null>(null);
@@ -112,8 +112,8 @@ export function ActivityStream({ items, chatRelay, onRefresh, query = "" }: { it
   }, []);
 
   return (
-    <aside id="activity" ref={asideRef} className={`fixed z-40 flex flex-col gap-2 inset-x-0 bottom-0 overflow-hidden pt-2 ps-[max(0.5rem,env(safe-area-inset-left))] pe-[max(0.5rem,env(safe-area-inset-right))] pb-2 md:static md:z-0 md:mt-2 md:grid md:w-full md:grid-cols-2 md:gap-2 md:overflow-visible md:p-0 ${sheetOpen ? "max-md:max-h-[min(70vh,560px)]" : ""}`}>
-      <div className={`${sheetOpen && mobileTab === "activity" ? "flex max-md:min-h-0 max-md:flex-1" : "hidden"} min-h-0 flex-col md:flex`}>
+    <aside id={embedded ? undefined : "activity"} ref={asideRef} className={embedded ? "relative flex min-h-0 flex-col gap-1 overflow-auto" : `fixed z-40 flex flex-col gap-2 inset-x-0 bottom-0 overflow-hidden pt-2 ps-[max(0.5rem,env(safe-area-inset-left))] pe-[max(0.5rem,env(safe-area-inset-right))] pb-2 md:static md:z-0 md:mt-2 md:grid md:w-full md:grid-cols-2 md:gap-2 md:overflow-visible md:p-0 ${sheetOpen ? "max-md:max-h-[min(70vh,560px)]" : ""}`}>
+      <div className={`${embedded || (sheetOpen && mobileTab === "activity") ? "flex max-md:min-h-0 max-md:flex-1" : "hidden"} min-h-0 flex-col md:flex`}>
         {activityOpen ? (
           <section className="surface flex min-h-0 flex-1 flex-col p-2.5 md:max-h-72">
             <div className="mb-2 flex items-center justify-between gap-2">
@@ -195,7 +195,7 @@ export function ActivityStream({ items, chatRelay, onRefresh, query = "" }: { it
           </button>
         )}
       </div>
-      <div className={`${sheetOpen && mobileTab === "chat" ? "flex" : "hidden"} min-h-0 flex-1 flex-col md:flex`}>
+      <div className={`${embedded || (sheetOpen && mobileTab === "chat") ? "flex" : "hidden"} min-h-0 flex-1 flex-col md:flex`}>
         <ChatDock
           open={chatOpen}
           items={items}
@@ -211,7 +211,7 @@ export function ActivityStream({ items, chatRelay, onRefresh, query = "" }: { it
           onSend={() => void send()}
         />
       </div>
-      <div className="surface flex shrink-0 gap-1 p-1 pb-[max(0.25rem,env(safe-area-inset-bottom))] md:hidden" role="tablist" aria-label="Dock">
+      {!embedded && <div className="surface flex shrink-0 gap-1 p-1 pb-[max(0.25rem,env(safe-area-inset-bottom))] md:hidden" role="tablist" aria-label="Dock">
         <button type="button" role="tab" aria-selected={sheetOpen && mobileTab === "activity"} aria-expanded={sheetOpen && mobileTab === "activity"} onClick={() => selectTab("activity")} className={`min-h-11 flex-1 rounded-full px-3 text-[13px] ${sheetOpen && mobileTab === "activity" ? "bg-[#f5d547] text-[#1a1400]" : "text-[#9a9aa3]"}`}>
           Activity
         </button>
@@ -223,7 +223,7 @@ export function ActivityStream({ items, chatRelay, onRefresh, query = "" }: { it
             Close
           </button>
         )}
-      </div>
+      </div>}
     </aside>
   );
 }

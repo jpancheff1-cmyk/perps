@@ -35,15 +35,50 @@ body {
 }
 
 .fui-panel {
-  background: rgba(7, 12, 24, 0.92);
-  border: 1px solid #16324a;
+  background: rgba(5, 8, 18, 0.94);
+  border: 1px solid #1c3b55;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.fui-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px;
+}
+
+@media (min-width: 1180px) {
+  .fui-screen {
+    display: grid;
+    height: 100vh;
+    overflow: hidden;
+    grid-template-columns: 1.05fr 1.2fr 0.95fr 1.05fr;
+    grid-template-rows: auto auto minmax(0, 0.7fr) minmax(0, 0.82fr) minmax(0, 1.4fr) minmax(0, 0.72fr) minmax(0, 0.95fr) auto;
+    gap: 4px;
+  }
+  .g-head { grid-area: 1 / 1 / 2 / 5; }
+  .g-feed { grid-area: 2 / 1 / 3 / 5; }
+  .g-wallet { grid-area: 3 / 1 / 5 / 2; }
+  .g-osc { grid-area: 3 / 2 / 4 / 4; }
+  .g-heat { grid-area: 3 / 4 / 4 / 5; }
+  .g-pay { grid-area: 4 / 2 / 5 / 3; }
+  .g-ask { grid-area: 4 / 3 / 5 / 5; }
+  .g-shell { grid-area: 5 / 1 / 7 / 3; }
+  .g-trades { grid-area: 5 / 3 / 6 / 5; }
+  .g-quant { grid-area: 6 / 3 / 7 / 5; }
+  .g-state { grid-area: 7 / 1 / 8 / 2; }
+  .g-trace { grid-area: 7 / 2 / 8 / 4; }
+  .g-phase { grid-area: 7 / 4 / 8 / 5; }
+  .g-tick { grid-area: 8 / 1 / 9 / 5; }
 }
 
 .fui-panel h2 {
   color: #00f0ff;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  font-size: 14px;
+  font-size: 11px;
   font-weight: 500;
 }
 
@@ -56,7 +91,7 @@ body {
 
 .fui-muted {
   color: #8fb4c9;
-  font-size: 14px;
+  font-size: 11px;
 }
 
 .fui-digits {
@@ -69,7 +104,7 @@ body {
 .ticker-track {
   display: inline-block;
   white-space: nowrap;
-  padding: 6px 0;
+  padding: 1px 0;
   animation: ticker 32s linear infinite;
 }
 

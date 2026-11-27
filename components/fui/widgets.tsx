@@ -33,17 +33,12 @@ export function Gauge({ label, ratio }: { label: string; ratio: number | null })
 export function Heatmap({ cells }: { cells: { symbol: string; change: number | null }[] }) {
   if (cells.length === 0) return <p className="fui-muted">No 5m candles yet.</p>;
   return (
-    <div className="grid grid-cols-4 gap-1">
+    <div className="grid grid-cols-12 gap-px">
       {cells.map((cell) => {
         const change = cell.change;
-        const hot = change == null ? 0 : Math.min(1, Math.abs(change) / 8);
-        const color = change == null ? "#14283c" : change >= 0 ? `rgba(57,255,20,${0.25 + hot * 0.75})` : `rgba(255,42,42,${0.25 + hot * 0.75})`;
-        return (
-          <div key={cell.symbol} className="px-1 py-1 text-center" style={{ background: color }} title={change == null ? cell.symbol : `${cell.symbol} ${change.toFixed(2)}%`}>
-            <div className="truncate text-[13px]">{cell.symbol}</div>
-            <div className="text-[13px]">{change == null ? "—" : `${change > 0 ? "+" : ""}${change.toFixed(1)}%`}</div>
-          </div>
-        );
+        const hot = change == null ? 0 : Math.min(1, Math.abs(change) / 1.5);
+        const color = change == null ? "#14283c" : change >= 0 ? `rgba(255,204,0,${0.35 + hot * 0.65})` : `rgba(70,140,255,${0.35 + hot * 0.65})`;
+        return <div key={cell.symbol} className="h-3" style={{ background: color }} title={change == null ? cell.symbol : `${cell.symbol} ${change.toFixed(2)}%`} />;
       })}
     </div>
   );
@@ -80,20 +75,88 @@ export function Ecg({ points }: { points: PnlPoint[] }) {
       return `${index === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`;
     })
     .join(" ");
+  const swings = points.map((point) => point.pnl);
+  const swingMax = Math.max(...swings.map((value) => Math.abs(value)), 1);
   return (
-    <svg viewBox="0 0 320 80" className="h-24 w-full" role="img" aria-label="Realized equity curve">
-      <path d={d} fill="none" stroke="#00f0ff" strokeWidth="1.6" />
+    <svg viewBox="0 0 320 80" className="h-full w-full" role="img" aria-label="Realized equity curve">
+      {swings.map((value, index) => {
+        const slot = 320 / swings.length;
+        const h = (Math.abs(value) / swingMax) * 18;
+        const y = value >= 0 ? 78 - h : 78;
+        return <rect key={points[index]?.id ?? index} x={index * slot} y={y} width={Math.max(1, slot - 0.6)} height={h} fill={value >= 0 ? "#39ff14" : "#ff2a6a"} opacity="0.85" />;
+      })}
+      <path d={d} fill="none" stroke="#00f0ff" strokeWidth="1.4" />
     </svg>
   );
 }
 
-export function Ticker({ items, reduced }: { items: string[]; reduced: boolean }) {
+export function Ticker({ items, reduced, bare = false }: { items: string[]; reduced: boolean; bare?: boolean }) {
   const text = items.length ? items.join("   ·   ") : "NO LIVE PRICES";
   const moving = items.length > 0 && !reduced;
   return (
-    <div className="overflow-hidden border-t border-[#16324a] bg-[#05060d] text-[13px] tracking-wide text-[#9fdfff] uppercase">
-      <div className={moving ? "ticker-track" : "px-3 py-1"}>{moving ? `${text}    ${text}` : text}</div>
+    <div className={bare ? "overflow-hidden text-[11px] tracking-wide uppercase" : "overflow-hidden border-t border-[#16324a] bg-[#05060d] text-[11px] tracking-wide text-[#9fdfff] uppercase"}>
+      <div className={moving ? "ticker-track" : "px-2 py-0.5"}>{moving ? `${text}    ${text}` : text}</div>
     </div>
+  );
+}
+
+export function Oscillator({ values }: { values: number[] }) {
+  const series = values.slice(-42);
+  if (series.length < 3) return <p className="fui-muted">No candles.</p>;
+  const max = Math.max(...series.map((value) => Math.abs(value)), 0.0001);
+  const width = 280;
+  const height = 72;
+  const line = series
+    .map((value, index) => {
+      const x = (index / (series.length - 1)) * width;
+      const y = height / 2 - (value / max) * (height / 2 - 4);
+      return `${index === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`;
+    })
+    .join(" ");
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} className="h-full w-full" role="img" aria-label="Candle returns">
+      {series.map((value, index) => {
+        const slot = width / series.length;
+        const h = Math.max(1, (Math.abs(value) / max) * (height / 2 - 4));
+        const y = value >= 0 ? height / 2 - h : height / 2;
+        return <rect key={index} x={index * slot + 0.4} y={y} width={Math.max(1.2, slot - 0.8)} height={h} fill={value >= 0 ? "#39ff14" : "#ff2a2a"} />;
+      })}
+      <path d={line} fill="none" stroke="#ffcc00" strokeWidth="1.1" />
+    </svg>
+  );
+}
+
+export function AskCurve({ values }: { values: number[] }) {
+  if (values.length < 2) return <p className="fui-muted">No price path.</p>;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = max - min || 1;
+  const d = values
+    .map((value, index) => {
+      const x = (index / (values.length - 1)) * 320;
+      const y = 78 - ((value - min) / span) * 68;
+      return `${index === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`;
+    })
+    .join(" ");
+  return (
+    <svg viewBox="0 0 320 86" className="h-full w-full" role="img" aria-label="Ask curve">
+      <path d={`${d} L320 86 L0 86 Z`} fill="#00f0ff" opacity="0.12" />
+      <path d={d} fill="none" stroke="#00f0ff" strokeWidth="1.4" />
+    </svg>
+  );
+}
+
+export function PayoffBars({ values }: { values: number[] }) {
+  if (values.length === 0) return <p className="fui-muted">No closed trades.</p>;
+  const max = Math.max(...values.map((value) => Math.abs(value)), 1);
+  return (
+    <svg viewBox={`0 0 ${values.length * 8} 48`} className="h-12 w-full" role="img" aria-label="Trade payoff">
+      {values.map((value, index) => {
+        const h = (Math.abs(value) / max) * 40;
+        const y = value >= 0 ? 24 - h : 24;
+        return <rect key={index} x={index * 8} y={y} width="6" height={h} fill={value >= 0 ? "#39ff14" : "#ff2a6a"} />;
+      })}
+    </svg>
   );
 }
 

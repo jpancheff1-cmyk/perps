@@ -55,19 +55,52 @@ function Field({ nodes, active, reduced }: { nodes: GlobeNode[]; active: string 
     });
   });
 
+  const shell = useMemo(() => {
+    const positions: number[] = [];
+    const place = (index: number, radius: number) => {
+      const phi = Math.acos(1 - 2 * ((index + 0.5) % 1200) / 1200);
+      const theta = Math.PI * (1 + Math.sqrt(5)) * index;
+      return [radius * Math.sin(phi) * Math.cos(theta), radius * Math.cos(phi), radius * Math.sin(phi) * Math.sin(theta)];
+    };
+    for (let index = 0; index < 1600; index += 1) {
+      const radius = 0.92 + (index % 4) * 0.03;
+      const start = place(index, radius);
+      const end = place(index + 11, radius);
+      positions.push(start[0], start[1], start[2], end[0], end[1], end[2]);
+    }
+    for (let index = 0; index < 220; index += 1) {
+      const inner = place(index, 0.18);
+      const outer = place(index, 1.22);
+      positions.push(inner[0], inner[1], inner[2], outer[0], outer[1], outer[2]);
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    return geometry;
+  }, []);
+  const cloud = useMemo(() => {
+    const positions: number[] = [];
+    for (let index = 0; index < 500; index += 1) {
+      const phi = Math.acos(1 - 2 * ((index + 0.5) / 500));
+      const theta = Math.PI * (1 + Math.sqrt(5)) * index;
+      const radius = index < 80 ? 0.12 : 0.96;
+      positions.push(radius * Math.sin(phi) * Math.cos(theta), radius * Math.cos(phi), radius * Math.sin(phi) * Math.sin(theta));
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    return geometry;
+  }, []);
+
   return (
     <group ref={group}>
-      <mesh>
-        <icosahedronGeometry args={[1, 1]} />
-        <meshBasicMaterial color="#12324a" wireframe />
-      </mesh>
-      <mesh>
-        <sphereGeometry args={[0.28, 8, 8]} />
-        <meshBasicMaterial color="#00f0ff" wireframe />
-      </mesh>
+      <lineSegments geometry={shell}>
+        <lineBasicMaterial color="#f2fbff" transparent opacity={0.72} />
+      </lineSegments>
+      <points geometry={cloud}>
+        <pointsMaterial color="#ffffff" size={1.4} sizeAttenuation={false} />
+      </points>
       {points.map((point, index) => (
         <mesh key={nodes[index]?.symbol ?? index} position={point}>
-          <sphereGeometry args={[active === nodes[index]?.symbol ? 0.055 : 0.035, 6, 6]} />
+          <sphereGeometry args={[active === nodes[index]?.symbol ? 0.03 : 0.012, 6, 6]} />
           <meshBasicMaterial color={active === nodes[index]?.symbol ? "#ffcc00" : "#00f0ff"} />
         </mesh>
       ))}
