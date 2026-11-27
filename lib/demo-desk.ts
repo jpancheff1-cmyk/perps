@@ -1,4 +1,6 @@
+import { nextSofia4h, rankSignals, signalFromCandles, type Ohlc } from "./signals";
 import type { AccountPosition, BotsView, DeskPayload, MarketCandle, PositionChart, Trade } from "./types";
+import { UNIVERSE } from "./universe";
 
 const COINS = [
   ["PF_XBTUSD", "BTC", 64250],
@@ -28,17 +30,20 @@ function series(seed: number, start: number, count: number, step: number): Marke
 
 /** Fixture for local previews only. Not used when the desk is served on Railway. */
 export function demoDesk(now = Date.now()): DeskPayload {
-  const positions: AccountPosition[] = COINS.slice(0, 6).map(([symbol, , price], index) => ({
-    symbol,
-    side: index % 3 === 0 ? "short" : "long",
-    size: 0.1 + index * 0.05,
-    entryPrice: price * 0.98,
-    unrealizedPnl: (index % 2 === 0 ? 1 : -1) * (40 + index * 18),
-    leverage: 3 + (index % 4),
-    liquidationPrice: price * (index % 2 === 0 ? 0.8 : 1.2),
-    markPrice: price,
-    openedAt: now - (index + 1) * 3_600_000,
-  }));
+  const positions: AccountPosition[] = COINS.slice(0, 6).map(([symbol, , price], index) => {
+    const side = index % 3 === 0 ? "short" : "long";
+    return {
+      symbol,
+      side,
+      size: 0.1 + index * 0.05,
+      entryPrice: price * 0.98,
+      unrealizedPnl: (index % 2 === 0 ? 1 : -1) * (40 + index * 18),
+      leverage: 3 + (index % 4),
+      liquidationPrice: price * (side === "short" ? 1.2 : 0.8),
+      markPrice: price,
+      openedAt: now - (index + 1) * 3_600_000,
+    };
+  });
   const charts: PositionChart[] = COINS.map(([symbol, , price], index) => {
     const candles = series(index + 3, price, 72, price * 0.01);
     const last = candles[candles.length - 1]?.c ?? price;
@@ -164,6 +169,9 @@ export function demoDesk(now = Date.now()): DeskPayload {
     ],
     trades,
     bots: demoBots(now),
+    marketLiqs: [
+      { symbol: "PF_XBTUSD", side: "sell", size: 0.42, price: 61240, time: now - 75_000 },
+    ],
     equity: Array.from({ length: 36 }, (_, index) => {
       const dip = index > 20 && index < 28 ? (index - 20) * 800 : 0;
       return { ts: now - (36 - index) * 3_600_000, equity: 270000 + index * 420 - dip };
@@ -171,6 +179,29 @@ export function demoDesk(now = Date.now()): DeskPayload {
     serverTime: now,
     chatRelay: false,
     forceStopArmed: false,
+    signals: demoSignals(now),
+  };
+}
+
+function ramp(count: number, start: number, drift: number, span: number, now: number): Ohlc[] {
+  const candles: Ohlc[] = [];
+  let price = start;
+  for (let index = 0; index < count; index += 1) {
+    price += drift;
+    candles.push({ t: now - (count - index) * span, h: price + Math.abs(drift) + 0.4, l: price - 0.2, c: price });
+  }
+  return candles;
+}
+
+function demoSignals(now: number) {
+  return {
+    nextClose: nextSofia4h(now),
+    rows: rankSignals(
+      UNIVERSE.map((coin, index) => {
+        const drift = index % 4 === 0 ? -0.35 : 0.55;
+        return signalFromCandles(coin, ramp(90, 20 + index, drift, 4 * 3_600_000, now), ramp(70, 15 + index, drift * 3, 86_400_000, now), index === 2);
+      }),
+    ),
   };
 }
 

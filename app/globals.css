@@ -55,7 +55,7 @@ body {
     height: 100vh;
     overflow: hidden;
     grid-template-columns: 1.05fr 1.2fr 0.95fr 1.05fr;
-    grid-template-rows: auto auto auto minmax(0, 0.55fr) minmax(0, 0.62fr) minmax(0, 1.05fr) minmax(0, 0.52fr) minmax(0, 0.62fr) minmax(168px, 0.72fr) auto;
+    grid-template-rows: auto auto auto minmax(0, 0.5fr) minmax(0, 0.55fr) minmax(0, 0.95fr) minmax(0, 0.45fr) minmax(150px, 0.8fr) minmax(168px, 0.7fr) auto;
     gap: 4px;
   }
   .g-head { grid-area: 1 / 1 / 2 / 5; }
@@ -109,7 +109,11 @@ body {
   white-space: nowrap;
   padding: 8px 0;
   line-height: 1.4;
-  animation: ticker 72s linear infinite;
+  animation: ticker 240s linear infinite;
+}
+
+.g-feed:hover .ticker-track {
+  animation-play-state: paused;
 }
 
 @keyframes ticker {

@@ -10,7 +10,10 @@ import { applyIngest, readFeed, resetStoreForTests } from "../lib/activity-store
 import { botsView } from "../lib/bots.ts";
 import { equityStats } from "../lib/equity-math.ts";
 import { readEquity, recordEquity, resetEquityForTests } from "../lib/equity-store.ts";
-import { idleFeedLine, lastSofia4h, liveFeedLines } from "../lib/live-feed.ts";
+import { idleFeedLine, lastSofia4h, liveFeedLines, positionLiqLines } from "../lib/live-feed.ts";
+import { parseHistory } from "../lib/market-liqs.ts";
+import { ema, nextSofia4h, scoreSignal } from "../lib/signals.ts";
+import { UNIVERSE } from "../lib/universe.ts";
 import { atr14, entriesToday, openRisk } from "../lib/open-risk.ts";
 import type { ActivityItem } from "../lib/types.ts";
 import { SESSION_COOKIE, checkPassword, readSessionToken, signSession } from "../lib/auth.ts";
@@ -454,6 +457,55 @@ test("equity snapshots keep peak, drawdown, and today's change", () => {
     resetStoreForTests();
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("signal rules mark a 4h trend only when ADX and the daily side agree", () => {
+  assert.equal(ema([2, 2, 2, 2], 3), 2);
+  assert.deepEqual(
+    [...UNIVERSE],
+    ["BTC", "ETH", "BNB", "XRP", "SOL", "HYPE", "ZEC", "DOGE", "LINK", "ADA", "XLM", "NEAR", "BCH", "LTC", "AVAX", "UNI", "SUI", "HBAR", "TAO", "AAVE", "PEPE", "CRV", "INJ", "ENA", "FET", "SEI", "DOT", "ARB", "POL", "STRK", "FIL", "TIA"],
+  );
+  const atTenFiftyTwoSofia = Date.parse("2026-11-27T08:52:00Z");
+  const next = nextSofia4h(atTenFiftyTwoSofia);
+  assert.equal(next, Date.parse("2026-11-27T12:00:00Z"));
+  assert.equal(formatSofiaTime(next).slice(0, 5), "14:00");
+  assert.equal(next - atTenFiftyTwoSofia, 3 * 3_600_000 + 8 * 60_000);
+  const summer = Date.parse("2026-07-15T07:52:00Z");
+  assert.equal(formatSofiaTime(nextSofia4h(summer)).slice(0, 5), "11:00");
+  const names = UNIVERSE as readonly string[];
+  for (const excluded of ["CRO", "QNT", "XMR", "TRX", "SHIB"]) assert.equal(names.includes(excluded), false);
+  const ready = scoreSignal({ close: 120, ema20: 110, ema50: 100, adx: 40, dailyEma: 90, inPosition: false });
+  assert.equal(ready.trend, "up");
+  assert.equal(ready.dailySide, true);
+  assert.equal(ready.status, "ready");
+  const near = scoreSignal({ close: 101, ema20: 100, ema50: 99, adx: 20, dailyEma: 100, inPosition: false });
+  assert.equal(near.status === "near" || near.status === "no", true);
+  assert.equal(scoreSignal({ close: 200, ema20: 90, ema50: 100, adx: 10, dailyEma: 50, inPosition: false }).status, "no");
+  assert.equal(scoreSignal({ close: 120, ema20: 110, ema50: 100, adx: 40, dailyEma: 90, inPosition: true }).status, "in");
+  for (const coin of UNIVERSE) assert.equal(fs.existsSync(new URL(`../public/coins/${coin.toLowerCase()}.svg`, import.meta.url)), true, coin);
+});
+
+test("public history keeps liquidation prints and drops fills", () => {
+  const parsed = parseHistory("PF_XBTUSD", {
+    history: [
+      { type: "fill", side: "buy", size: "1", price: 100, time: "2026-11-27T08:00:00Z" },
+      { type: "liquidation", side: "sell", size: "0.4", price: 61000, time: "2026-11-27T08:01:00Z" },
+      { type: "partial liquidation", side: "buy", size: 0.1, price: 3200, time: "2026-11-27T08:02:00Z" },
+      { type: "block", side: "sell", size: 2, price: 100, time: "2026-11-27T08:03:00Z" },
+    ],
+  });
+  assert.equal(parsed.length, 2);
+  assert.equal(parsed[0]?.side, "sell");
+  assert.equal(parsed[0]?.size, 0.4);
+  assert.equal(parsed[1]?.symbol, "PF_XBTUSD");
+  const lines = positionLiqLines(
+    [{ symbol: "PF_XBTUSD", side: "long", size: 0.2, entryPrice: 64000, unrealizedPnl: 1, leverage: 3, liquidationPrice: 58000, markPrice: 64000, openedAt: 1 }],
+    Date.parse("2026-11-27T08:00:00Z"),
+  );
+  assert.equal(lines.length, 1);
+  assert.match(lines[0], /BTC long liq/);
+  assert.match(lines[0], /9\.4%/);
+  assert.equal(fs.readFileSync(new URL("../lib/market-liqs.ts", import.meta.url), "utf8").includes("KRAKEN_FUTURES_API_KEY"), false);
 });
 
 test("open risk prices the stop in percent, ATR, and dollars", () => {

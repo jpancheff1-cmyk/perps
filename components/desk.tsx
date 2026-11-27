@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ActivityStream } from "@/components/activity-stream";
 import { BotPanels, emptyBots } from "@/components/bots-strip";
+import { CoinRow } from "@/components/coin-row";
+import { SignalWatchPanel } from "@/components/signal-watch";
 import { ForceStop } from "@/components/force-stop";
 import { AskCurve, Digits, ExposureBars, GlobeLink, Heatmap, Oscillator, PayoffBars, Ticker } from "@/components/fui/widgets";
 import { KrakenStrip } from "@/components/kraken-strip";
@@ -13,7 +15,7 @@ import { PositionBoard } from "@/components/position-board";
 import { PerformancePanel } from "@/components/performance-panel";
 import { OpenFuturesTrades } from "@/components/trades-panel";
 import { demoDesk } from "@/lib/demo-desk";
-import { idleFeedLine, liveFeedLines } from "@/lib/live-feed";
+import { idleFeedLine, liveFeedLines, marketLiqLines, positionLiqLines } from "@/lib/live-feed";
 import { equityStats } from "@/lib/equity-math";
 import { formatPrice, formatUsd } from "@/lib/format";
 import { buildOpenFutures } from "@/lib/futures-book";
@@ -27,24 +29,13 @@ const WireGlobe = dynamic(() => import("@/components/fui/globe").then((mod) => m
   loading: () => null,
 });
 
-const NAV = [
-  { id: "balances", label: "Futures" },
-  { id: "chart", label: "Chart" },
-  { id: "wallet", label: "Wallet" },
-  { id: "activity", label: "Tape" },
-  { id: "chat", label: "Chat" },
-  { id: "xstocks", label: "XStocks" },
-  { id: "dca", label: "DCA" },
-];
-
 export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
   const router = useRouter();
   const [state, setState] = useState<DeskPayload | null>(null);
   const [error, setError] = useState(false);
   const [clock, setClock] = useState("");
   const [performanceOpen, setPerformanceOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const [section, setSection] = useState("balances");
+  const query = "";
   const [period, setPeriod] = useState<PeriodId>("day");
   const [symbol, setSymbol] = useState<string | null>(null);
   const [reduced, setReduced] = useState(false);
@@ -139,7 +130,11 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
   const heat = fillCells(charts);
   const bars = exposureRows(view);
   const tape = tickerItems(charts, view);
-  const feed = liveFeedLines(view?.items ?? []);
+  const feed = [
+    ...positionLiqLines(view?.account.positions ?? [], view?.serverTime ?? Date.now()),
+    ...marketLiqLines(view?.marketLiqs ?? []),
+    ...liveFeedLines(view?.items ?? []),
+  ];
   const feedLine = feed.length ? feed : [idleFeedLine(view?.serverTime ?? Date.now())];
   const imbalance = bookImbalance(view);
   const equity = equityStats(view?.equity ?? [], view?.serverTime ?? Date.now());
@@ -161,17 +156,6 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <span className="text-lg font-bold text-[#00f0ff] tabular-nums">{clock || "—"}</span>
-          <nav className="flex gap-1" aria-label="Sections">
-            {NAV.map((item) => (
-              <a key={item.id} href={`#${item.id}`} aria-current={section === item.id ? "true" : undefined} onClick={() => setSection(item.id)} className={`px-1 text-[10px] uppercase ${section === item.id ? "text-[#00f0ff]" : "text-[#8fb4c9]"}`}>
-                {item.label}
-              </a>
-            ))}
-          </nav>
-          <label>
-            <span className="sr-only">Search the desk</span>
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="SEARCH" className="h-7 w-24 border border-[#16324a] bg-transparent px-1 text-[11px] uppercase outline-none focus:border-[#00f0ff]" />
-          </label>
           {view && <OneUp items={view.items} trades={view.trades} />}
           <ForceStop
             compact
@@ -185,6 +169,7 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
           />
           <button type="button" onClick={() => void lock()} className="h-7 border border-[#16324a] px-2 text-[11px] uppercase">Lock</button>
         </div>
+        <CoinRow rows={view?.signals.rows ?? []} open={new Set((view?.account.positions ?? []).filter((position) => position.size).map((position) => coinName(position.symbol)))} />
       </header>
       <div className="g-feed flex min-h-11 items-center gap-3 overflow-hidden border border-[#ff5a7a] bg-[#3a0a14] px-3 text-[#ffe8ee]">
         <span className="shrink-0 text-[15px] font-bold text-[#ff8aa0]">● Live feed</span>
@@ -283,12 +268,8 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
         <div className="min-h-0 flex-1"><EquityCurve points={equity.points} /></div>
       </section>
       <section id="activity" className="g-trace fui-panel flex min-h-0 flex-col px-2 py-1">
-        <PanelHead title="Decision trace" />
-        <div className="min-h-0 flex-1 overflow-auto text-[13px] leading-snug">
-          {feedLine.map((line, index) => (
-            <p key={`${line}-${index}`} className="text-[#d7f6ff]">{line}</p>
-          ))}
-        </div>
+        <PanelHead title="Signal watch" />
+        <SignalWatchPanel watch={view?.signals ?? null} now={view?.serverTime ?? Date.now()} />
       </section>
       <section id="chat" className="g-chat fui-panel flex min-h-[168px] flex-col px-2 py-1">
         <PanelHead title="Chat" />
