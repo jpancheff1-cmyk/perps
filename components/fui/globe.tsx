@@ -6,9 +6,10 @@ export const globeLink = { x: 0, y: 0, ok: false };
 
 export type GlobeNode = { symbol: string };
 
+/** Circle diameter is 472. Eyes match the avatar: ~22% and ~23% long, ~10% and ~7% thick, one thickness apart. */
 const EYES = [
-  { cx: 280, cy: 180, length: 115, thick: 48 },
-  { cx: 388, cy: 128, length: 120, thick: 34 },
+  { cx: 282, cy: 193, length: 104, thick: 47 },
+  { cx: 354, cy: 143, length: 109, thick: 33 },
 ] as const;
 
 export function WireGlobe({ nodes, active, reduced, spit = 0 }: { nodes: GlobeNode[]; active: string | null; reduced: boolean; spit?: number }) {
@@ -78,7 +79,7 @@ export function WireGlobe({ nodes, active, reduced, spit = 0 }: { nodes: GlobeNo
           const angle = (index / Math.max(nodes.length, 1)) * 360;
           const on = active === node.symbol;
           return (
-            <span key={node.symbol} className="absolute left-1/2 top-1/2" style={{ transform: `rotate(${angle}deg) translateY(-46px)` }}>
+            <span key={node.symbol} className="absolute left-1/2 top-1/2" style={{ transform: `rotate(${angle}deg) translateY(-38px)` }}>
               <span className={`block rounded-full ${on ? "h-2.5 w-2.5 bg-[#ffcc00]" : "h-1.5 w-1.5 bg-[#9fd8ff]"}`} />
             </span>
           );
@@ -86,7 +87,7 @@ export function WireGlobe({ nodes, active, reduced, spit = 0 }: { nodes: GlobeNo
       </div>
       <div className={`absolute left-1/2 top-1/2 ${reduced ? "-translate-x-1/2 -translate-y-1/2" : "avatar-bob"}`}>
         <div className={reduced ? "" : reacting ? "avatar-spit" : "avatar-breathe"}>
-          <svg ref={orb} data-avatar-orb viewBox="0 0 512 512" className="h-[86px] w-[86px]" role="img" aria-label="Avatar">
+          <svg ref={orb} data-avatar-orb viewBox="0 0 512 512" className="h-[78px] w-[78px]" role="img" aria-label="Avatar">
             <circle cx="256" cy="256" r="236" fill="#000" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
             <g ref={eyes}>
               {EYES.map((eye) => (

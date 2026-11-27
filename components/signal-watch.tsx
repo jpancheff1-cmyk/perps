@@ -38,7 +38,7 @@ export function SignalWatchPanel({ watch, now, paper = false }: { watch: SignalW
         <button type="button" onClick={() => setSort("score")} className="text-left">Score</button>
         <span />
       </div>
-      <div className="min-h-16 flex-1 overflow-auto">
+      <div className="signal-list min-h-16 flex-1 overflow-auto">
         {rows.map((row) => (
           <div key={row.coin} className="signal-row grid grid-cols-[52px_36px_28px_52px_36px_1fr] gap-1 py-0.5 text-[11px] uppercase">
             <span className="text-[#e7f6ff]">{row.coin}</span>

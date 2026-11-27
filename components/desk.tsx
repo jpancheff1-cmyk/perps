@@ -374,7 +374,7 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
           <Fact label="Max DD" value={equity.maxDrawdownPct == null ? "—" : `${equity.maxDrawdownPct.toFixed(1)}%`} />
           <Fact label="Today" value={equity.todayPnl == null ? "—" : formatUsd(equity.todayPnl)} />
         </dl>
-        <div className="min-h-0 flex-1"><EquityCurve points={equity.points} /></div>
+        <div className="equity-chart min-h-0 flex-1"><EquityCurve points={equity.points} /></div>
       </section>
       <section id="activity" className="g-trace fui-panel flex min-h-0 flex-col px-2 py-1">
         <PanelHead title="Signal watch" />
