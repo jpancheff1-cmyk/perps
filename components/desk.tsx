@@ -13,7 +13,7 @@ import { PositionBoard } from "@/components/position-board";
 import { PerformancePanel } from "@/components/performance-panel";
 import { OpenFuturesTrades } from "@/components/trades-panel";
 import { demoDesk } from "@/lib/demo-desk";
-import { idleFeedLine, liveFeedLines } from "@/lib/live-feed";
+import { idleFeedLine, liveFeedLines, marketLiqLines, positionLiqLines } from "@/lib/live-feed";
 import { equityStats } from "@/lib/equity-math";
 import { formatPrice, formatUsd } from "@/lib/format";
 import { buildOpenFutures } from "@/lib/futures-book";
@@ -139,7 +139,11 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
   const heat = fillCells(charts);
   const bars = exposureRows(view);
   const tape = tickerItems(charts, view);
-  const feed = liveFeedLines(view?.items ?? []);
+  const feed = [
+    ...positionLiqLines(view?.account.positions ?? [], view?.serverTime ?? Date.now()),
+    ...marketLiqLines(view?.marketLiqs ?? []),
+    ...liveFeedLines(view?.items ?? []),
+  ];
   const feedLine = feed.length ? feed : [idleFeedLine(view?.serverTime ?? Date.now())];
   const imbalance = bookImbalance(view);
   const equity = equityStats(view?.equity ?? [], view?.serverTime ?? Date.now());

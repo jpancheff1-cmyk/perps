@@ -10,7 +10,8 @@ import { applyIngest, readFeed, resetStoreForTests } from "../lib/activity-store
 import { botsView } from "../lib/bots.ts";
 import { equityStats } from "../lib/equity-math.ts";
 import { readEquity, recordEquity, resetEquityForTests } from "../lib/equity-store.ts";
-import { idleFeedLine, lastSofia4h, liveFeedLines } from "../lib/live-feed.ts";
+import { idleFeedLine, lastSofia4h, liveFeedLines, positionLiqLines } from "../lib/live-feed.ts";
+import { parseHistory } from "../lib/market-liqs.ts";
 import { atr14, entriesToday, openRisk } from "../lib/open-risk.ts";
 import type { ActivityItem } from "../lib/types.ts";
 import { SESSION_COOKIE, checkPassword, readSessionToken, signSession } from "../lib/auth.ts";
@@ -454,6 +455,29 @@ test("equity snapshots keep peak, drawdown, and today's change", () => {
     resetStoreForTests();
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("public history keeps liquidation prints and drops fills", () => {
+  const parsed = parseHistory("PF_XBTUSD", {
+    history: [
+      { type: "fill", side: "buy", size: "1", price: 100, time: "2026-11-27T08:00:00Z" },
+      { type: "liquidation", side: "sell", size: "0.4", price: 61000, time: "2026-11-27T08:01:00Z" },
+      { type: "partial liquidation", side: "buy", size: 0.1, price: 3200, time: "2026-11-27T08:02:00Z" },
+      { type: "block", side: "sell", size: 2, price: 100, time: "2026-11-27T08:03:00Z" },
+    ],
+  });
+  assert.equal(parsed.length, 2);
+  assert.equal(parsed[0]?.side, "sell");
+  assert.equal(parsed[0]?.size, 0.4);
+  assert.equal(parsed[1]?.symbol, "PF_XBTUSD");
+  const lines = positionLiqLines(
+    [{ symbol: "PF_XBTUSD", side: "long", size: 0.2, entryPrice: 64000, unrealizedPnl: 1, leverage: 3, liquidationPrice: 58000, markPrice: 64000, openedAt: 1 }],
+    Date.parse("2026-11-27T08:00:00Z"),
+  );
+  assert.equal(lines.length, 1);
+  assert.match(lines[0], /BTC long liq/);
+  assert.match(lines[0], /9\.4%/);
+  assert.equal(fs.readFileSync(new URL("../lib/market-liqs.ts", import.meta.url), "utf8").includes("KRAKEN_FUTURES_API_KEY"), false);
 });
 
 test("open risk prices the stop in percent, ATR, and dollars", () => {

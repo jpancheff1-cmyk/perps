@@ -109,7 +109,11 @@ body {
   white-space: nowrap;
   padding: 8px 0;
   line-height: 1.4;
-  animation: ticker 72s linear infinite;
+  animation: ticker 240s linear infinite;
+}
+
+.g-feed:hover .ticker-track {
+  animation-play-state: paused;
 }
 
 @keyframes ticker {

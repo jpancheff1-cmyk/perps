@@ -3,6 +3,7 @@ import { getSnapshot } from "@/lib/account-poller";
 import { readFeed } from "@/lib/activity-store";
 import { loadBotsView } from "@/lib/bots";
 import { readEquity } from "@/lib/equity-store";
+import { getMarketLiquidations } from "@/lib/market-liqs";
 import { chatRelayConfigured } from "@/lib/chat";
 import { requireUser } from "@/lib/guard";
 import { forceStopArmed } from "@/lib/kraken-trade";
@@ -15,6 +16,7 @@ export async function GET(request: NextRequest) {
   if (denied) return denied;
   const snapshot = await getSnapshot();
   const feed = readFeed();
+  const marketLiqs = await getMarketLiquidations(snapshot.account.positions.map((position) => position.symbol));
   return NextResponse.json(
     {
       ...snapshot,
@@ -22,6 +24,7 @@ export async function GET(request: NextRequest) {
       trades: feed.trades,
       bots: await loadBotsView(),
       equity: readEquity(),
+      marketLiqs,
       serverTime: Date.now(),
       chatRelay: chatRelayConfigured(),
       forceStopArmed: forceStopArmed(),

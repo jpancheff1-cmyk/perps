@@ -55,6 +55,8 @@ test("phone layout keeps the viewport, a closable dock, and a lighter background
   assert.equal(stop.includes("<input"), false);
 
   const css = read("app/globals.css");
+  assert.match(css, /ticker 240s linear infinite/);
+  assert.match(css, /animation-play-state:\s*paused/);
   assert.match(css, /overflow-x:\s*clip/);
   assert.match(css, /safe-area-inset-top/);
   assert.equal(css.includes("font-mono"), false);

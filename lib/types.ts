@@ -206,6 +206,14 @@ export type BotsView = { xstocks: XStocksView; dca: DcaView };
 
 export type EquityPoint = { ts: number; equity: number };
 
+export type MarketLiquidation = {
+  symbol: string;
+  side: "buy" | "sell";
+  size: number;
+  price: number;
+  time: number;
+};
+
 export type DeskPayload = {
   account: AccountPayload;
   spot: SpotPayload;
@@ -216,6 +224,7 @@ export type DeskPayload = {
   trades: Trade[];
   bots: BotsView;
   equity: EquityPoint[];
+  marketLiqs: MarketLiquidation[];
   serverTime: number;
   chatRelay: boolean;
   forceStopArmed: boolean;
