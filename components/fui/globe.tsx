@@ -88,11 +88,11 @@ export function WireGlobe({ nodes, active, reduced, spit = 0 }: { nodes: GlobeNo
       <div className={`absolute left-1/2 top-1/2 ${reduced ? "-translate-x-1/2 -translate-y-1/2" : "avatar-bob"}`}>
         <div className={reduced ? "" : reacting ? "avatar-spit" : "avatar-breathe"}>
           <svg ref={orb} data-avatar-orb viewBox="0 0 512 512" className="h-[78px] w-[78px]" role="img" aria-label="Avatar">
-            <circle cx="256" cy="256" r="236" fill="#000" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
+            <circle cx="256" cy="256" r="236" fill="#fff" />
             <g ref={eyes}>
               {EYES.map((eye) => (
                 <g key={`${eye.cx}-${eye.cy}`} transform={`translate(${eye.cx} ${eye.cy}) rotate(55)`}>
-                  <rect x={-eye.length / 2} y={-eye.thick / 2} width={eye.length} height={eye.thick} rx={eye.thick / 2} fill="#fff" transform={`scale(1 ${blink})`} />
+                  <rect x={-eye.length / 2} y={-eye.thick / 2} width={eye.length} height={eye.thick} rx={eye.thick / 2} fill="#000" transform={`scale(1 ${blink})`} />
                 </g>
               ))}
             </g>

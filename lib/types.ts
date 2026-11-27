@@ -235,6 +235,8 @@ export type MarketLiquidation = {
   time: number;
 };
 
+export type FuturesQuote = { coin: string; price: number; change24: number };
+
 export type DeskPayload = {
   account: AccountPayload;
   spot: SpotPayload;
@@ -246,6 +248,8 @@ export type DeskPayload = {
   bots: BotsView;
   equity: EquityPoint[];
   marketLiqs: MarketLiquidation[];
+  quotes: FuturesQuote[];
+  quotesAt: number | null;
   signals: SignalWatch;
   serverTime: number;
   chatRelay: boolean;
