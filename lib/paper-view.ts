@@ -1,3 +1,4 @@
+import { positionInitialMargin } from "./margin";
 import type { PaperSession } from "./paper";
 import { PAPER_EQUITY } from "./paper";
 import type { AccountPosition, DeskPayload, FuturesOrder, MarketCandle, PositionChart, Trade } from "./types";
@@ -55,6 +56,10 @@ export function paperView(base: DeskPayload, session: PaperSession): DeskPayload
     updatedAt: close.closedAt,
   }));
   const open = new Set(session.positions.map((position) => position.coin));
+  const initialMargin = session.positions.reduce(
+    (sum, position) => sum + positionInitialMargin(position.size, position.mark > 0 ? position.mark : position.entry, position.leverage),
+    0,
+  );
   const charts = [
     ...session.positions
       .filter((position) => !base.charts.some((chart) => chart.symbol === position.symbol))
@@ -69,6 +74,7 @@ export function paperView(base: DeskPayload, session: PaperSession): DeskPayload
       connected: true,
       portfolioValue: session.equity + unrealized,
       availableMargin: session.equity,
+      initialMargin,
       unrealizedPnl: unrealized,
       positions,
       orders,

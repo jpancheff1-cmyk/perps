@@ -19,6 +19,8 @@ import { idleFeedLine, liveFeedLines, marketLiqLines, positionLiqLines } from "@
 import type { PaperSession } from "@/lib/paper";
 import { paperView } from "@/lib/paper-view";
 import { equityStats } from "@/lib/equity-math";
+import { marginBreakdown } from "@/lib/margin";
+import { perpSymbol, UNIVERSE } from "@/lib/universe";
 import { formatPrice, formatUsd } from "@/lib/format";
 import { buildOpenFutures } from "@/lib/futures-book";
 import { entriesToday, openRisk } from "@/lib/open-risk";
@@ -42,6 +44,7 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
   const [symbol, setSymbol] = useState<string | null>(null);
   const [reduced, setReduced] = useState(false);
   const [phone, setPhone] = useState(false);
+  const [shell, setShell] = useState(false);
   const [chatCollapsed, setChatCollapsed] = useState(false);
   const [paperOn, setPaperOn] = useState(false);
   const [paper, setPaper] = useState<PaperSession | null>(null);
@@ -98,6 +101,14 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
   useEffect(() => {
     const media = window.matchMedia("(max-width: 1179px)");
     const apply = () => setPhone(media.matches);
+    apply();
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
+  }, []);
+
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 768px)");
+    const apply = () => setShell(media.matches);
     apply();
     media.addEventListener("change", apply);
     return () => media.removeEventListener("change", apply);
@@ -170,6 +181,7 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
 
   const [fixture] = useState(() => demoDesk());
   const view = paperOn && paper && state ? paperView(state, paper) : demoOn ? fixture : state;
+  const margin = view?.account.connected ? marginBreakdown(view.account) : null;
   const total = view ? connectedTotal(view) : null;
   const periods = view ? periodPnl(view.trades) : { day: null, week: null, month: null };
   const charts = view?.charts ?? [];
@@ -182,7 +194,6 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
   const openCount = view?.account.positions.filter((position) => position.size).length ?? 0;
   const heat = fillCells(charts);
   const bars = exposureRows(view);
-  const tape = tickerItems(charts, view);
   const feed = [
     ...positionLiqLines(view?.account.positions ?? [], view?.serverTime ?? Date.now()),
     ...marketLiqLines(view?.marketLiqs ?? []),
@@ -264,7 +275,8 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
           <Fact label="Portfolio" value={view?.account.connected ? formatUsd(view.account.portfolioValue) : "—"} />
           <Fact label="Unrealized" value={view?.account.connected ? formatUsd(view.account.unrealizedPnl) : "—"} tone={toneOf(view?.account.unrealizedPnl)} />
           <Fact label="Available" value={view?.account.connected ? formatUsd(view.account.availableMargin) : "—"} />
-          <Fact label="Margin used" value={marginUsed(view)} />
+          <Fact label="Margin used" value={margin ? formatUsd(margin.marginUsed) : "—"} />
+          {margin?.showHaircut ? <Fact label="Collateral haircut" value={formatUsd(margin.haircut)} /> : null}
           <Fact label="Spot" value={view?.spot.connected && view.spot.totalUsd != null ? formatUsd(view.spot.totalUsd) : "—"} />
           <Fact label="Earn" value={view?.earn.connected && view.earn.totalUsd != null ? formatUsd(view.earn.totalUsd) : "—"} />
           <Fact label="Open" value={view ? String(openCount) : "—"} />
@@ -322,10 +334,10 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
           <Fact label="Resistance" value={focusChart?.resistance == null ? "—" : formatPrice(focusChart.resistance)} />
         </dl>
       </section>
-      <section className="g-shell fui-panel relative flex min-h-64 flex-col px-2 py-1">
+      <section className="g-shell fui-panel relative flex h-full min-h-0 flex-col px-2 py-1">
         <PanelHead title="Neural shell" />
-        <div className="min-h-0 flex-1">
-          {!phone && nodes.length > 0 && <WireGlobe nodes={nodes} active={focus} reduced={reduced} />}
+        <div className="relative min-h-0 flex-1">
+          {shell && <WireGlobe nodes={nodes} active={focus} reduced={reduced} />}
         </div>
       </section>
       <section className="g-trades min-h-0 overflow-auto">
@@ -391,9 +403,6 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
           ))}
         </div>
       </section>
-      <div className="g-tick">
-        <Ticker items={tape} reduced={reduced} />
-      </div>
       {performanceOpen ? <PerformancePanel onClose={() => setPerformanceOpen(false)} /> : null}
     </div>
   );
@@ -458,7 +467,9 @@ function globeNodes(charts: PositionChart[], state: DeskPayload | null) {
   for (const chart of charts) if (chart.symbol) names.add(chart.symbol);
   for (const position of state?.account.positions ?? []) if (position.symbol) names.add(position.symbol);
   for (const asset of state?.spot.assets ?? []) if (asset.asset) names.add(asset.asset);
-  return [...names].slice(0, 32).map((symbol) => ({ symbol }));
+  const symbols = [...names].slice(0, 32);
+  const nodes = (symbols.length > 0 ? symbols : UNIVERSE.map((coin) => perpSymbol(coin))).map((symbol) => ({ symbol }));
+  return nodes;
 }
 
 function quote(charts: PositionChart[], state: DeskPayload | null, coin: string) {
@@ -497,18 +508,6 @@ function exposureRows(state: DeskPayload | null) {
   return [...rows.values()];
 }
 
-function tickerItems(charts: PositionChart[], state: DeskPayload | null) {
-  const items: string[] = [];
-  for (const chart of charts) if (chart.last != null) items.push(`${coinName(chart.symbol)} ${formatPrice(chart.last)}`);
-  for (const asset of state?.spot.assets ?? []) if (asset.usd != null) items.push(`${asset.asset} ${formatUsd(asset.usd)}`);
-  return items;
-}
-
-function marginRatio(state: DeskPayload | null) {
-  if (!state?.account.connected || state.account.portfolioValue == null || state.account.availableMargin == null || state.account.portfolioValue <= 0) return null;
-  return Math.min(1, Math.max(0, (state.account.portfolioValue - state.account.availableMargin) / state.account.portfolioValue));
-}
-
 function exposureRatio(state: DeskPayload | null) {
   if (!state?.account.connected || state.account.portfolioValue == null || state.account.portfolioValue <= 0) return null;
   const notion = exposureRows(state).reduce((sum, row) => sum + row.long + row.short, 0);
@@ -544,11 +543,6 @@ function Fact({ label, value, tone }: { label: string; value: string; tone?: "up
 function toneOf(value: number | null | undefined): "up" | "down" | undefined {
   if (value == null || value === 0) return undefined;
   return value > 0 ? "up" : "down";
-}
-
-function marginUsed(state: DeskPayload | null) {
-  if (!state?.account.connected || state.account.portfolioValue == null || state.account.availableMargin == null) return "—";
-  return formatUsd(state.account.portfolioValue - state.account.availableMargin);
 }
 
 function CandleStrip({ candles }: { candles: MarketCandle[] }) {

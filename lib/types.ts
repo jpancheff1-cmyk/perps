@@ -49,6 +49,8 @@ export type AccountPayload = {
   usdcWallet: number | null;
   usdcSource: "cash" | "flex" | null;
   availableMargin: number | null;
+  /** Flex initialMarginWithOrders, else initialMargin. Not the collateral haircut. */
+  initialMargin: number | null;
   unrealizedPnl: number | null;
   positions: AccountPosition[];
   orders: FuturesOrder[];

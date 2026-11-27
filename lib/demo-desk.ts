@@ -77,6 +77,11 @@ export function demoDesk(now = Date.now()): DeskPayload {
       usdcWallet: 48210,
       usdcSource: "cash",
       availableMargin: 120400,
+      initialMargin: positions.reduce((sum, position) => {
+        const price = position.markPrice ?? position.entryPrice ?? 0;
+        const leverage = position.leverage && position.leverage > 0 ? position.leverage : 1;
+        return sum + (Math.abs(position.size ?? 0) * price) / leverage;
+      }, 0),
       unrealizedPnl: positions.reduce((sum, position) => sum + (position.unrealizedPnl ?? 0), 0),
       positions,
       orders: positions.slice(0, 4).map((position) => ({
