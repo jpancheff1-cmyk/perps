@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
   const length = Number(request.headers.get("content-length") ?? 0);
-  if (length > 100_000) {
+  if (length > 1_000_000) {
     return NextResponse.json({ ok: false, error: "Payload is too large." }, { status: 413 });
   }
   const body = await request.json().catch(() => null);

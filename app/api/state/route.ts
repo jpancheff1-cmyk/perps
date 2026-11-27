@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSnapshot } from "@/lib/account-poller";
 import { readFeed } from "@/lib/activity-store";
+import { loadBotsView } from "@/lib/bots";
 import { chatRelayConfigured } from "@/lib/chat";
 import { requireUser } from "@/lib/guard";
 import { forceStopArmed } from "@/lib/kraken-trade";
@@ -18,6 +19,7 @@ export async function GET(request: NextRequest) {
       ...snapshot,
       items: feed.items,
       trades: feed.trades,
+      bots: await loadBotsView(),
       serverTime: Date.now(),
       chatRelay: chatRelayConfigured(),
       forceStopArmed: forceStopArmed(),

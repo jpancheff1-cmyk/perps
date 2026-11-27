@@ -5,7 +5,7 @@ import { useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNod
 /** Shared size for the FORCE STOP / Performance pair. Color stays on each button. */
 const pairButton = "grid min-h-14 w-full place-items-center rounded-2xl px-2 text-center text-[17px] font-black leading-tight tracking-wide transition select-none hover:brightness-110 active:brightness-95 sm:px-3 sm:text-[19px]";
 
-export function ForceStop({ armed, onDone, companion }: { armed: boolean; onDone: () => void; companion?: ReactNode }) {
+export function ForceStop({ armed, onDone, companion, compact = false }: { armed: boolean; onDone: () => void; companion?: ReactNode; compact?: boolean }) {
   const [holding, setHolding] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -61,19 +61,16 @@ export function ForceStop({ armed, onDone, companion }: { armed: boolean; onDone
     setHolding(false);
   }
 
+  const shell = compact ? "inline-flex items-center gap-1" : "grid grid-cols-2 items-stretch gap-2";
+  const face = compact
+    ? "h-7 px-2 text-[11px] font-bold uppercase tracking-wide"
+    : pairButton;
+
   if (!armed) {
     return (
-      <div className="grid grid-cols-2 items-stretch gap-2">
-        <button
-          type="button"
-          disabled
-          title="Set FORCE_STOP_ENABLED to true and add the trade keys."
-          className={`${pairButton} cursor-not-allowed bg-[#7f1d1d] text-white/70`}
-        >
-          <span>
-            {"FORCE STOP "}
-            <span className="max-sm:block">(not armed)</span>
-          </span>
+      <div className={shell}>
+        <button type="button" disabled className={`${face} cursor-not-allowed bg-[#7f1d1d] text-white/70`}>
+          {compact ? "STOP" : "FORCE STOP"}
         </button>
         {companion}
       </div>
@@ -81,8 +78,8 @@ export function ForceStop({ armed, onDone, companion }: { armed: boolean; onDone
   }
 
   return (
-    <div>
-      <div className="grid grid-cols-2 items-stretch gap-2">
+    <div className={compact ? shell : undefined}>
+      <div className={compact ? "contents" : "grid grid-cols-2 items-stretch gap-2"}>
         <button
           type="button"
           onPointerDown={startHold}
@@ -90,16 +87,16 @@ export function ForceStop({ armed, onDone, companion }: { armed: boolean; onDone
           onPointerCancel={stopHold}
           onContextMenu={(event) => event.preventDefault()}
           aria-describedby="force-stop-hold"
-          className={`${pairButton} touch-none text-white ${holding ? "bg-[#ef4444]" : "bg-[#dc2626]"}`}
+          className={`${face} touch-none text-white ${holding ? "bg-[#ef4444]" : "bg-[#dc2626]"}`}
         >
-          {holding ? "Hold…" : "FORCE STOP"}
+          {holding ? "HOLD" : compact ? "STOP" : "FORCE STOP"}
         </button>
         {companion}
       </div>
-      <p id="force-stop-hold" className="mt-2 text-sm text-[#fecaca]">
+      <p id="force-stop-hold" className="sr-only">
         Hold for 2 seconds. This cancels open futures orders and closes positions with reduce-only market orders. It does not withdraw or transfer.
       </p>
-      {message && <p className="mt-2 text-sm text-[#fecaca]">{message}</p>}
+      {message && <p className={compact ? "text-[11px] text-[#fecaca]" : "mt-2 text-sm text-[#fecaca]"}>{message}</p>}
     </div>
   );
 }

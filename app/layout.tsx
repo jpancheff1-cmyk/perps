@@ -1,10 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import { Roboto } from "next/font/google";
+import { JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-const roboto = Roboto({
+const jetbrains = JetBrains_Mono({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "900"],
+  weight: ["400", "500", "700"],
   display: "swap",
 });
 
@@ -22,7 +22,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${roboto.className} h-full antialiased`}>
+    <html lang="en" className={`${jetbrains.className} h-full antialiased`}>
       <body className="min-h-full">{children}</body>
     </html>
   );

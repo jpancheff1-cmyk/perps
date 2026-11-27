@@ -6,5 +6,5 @@ export const dynamic = "force-dynamic";
 
 export default async function Page() {
   if (!(await isAuthed())) redirect("/login");
-  return <Desk />;
+  return <Desk allowDemo={!process.env.RAILWAY_ENVIRONMENT} />;
 }

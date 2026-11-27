@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { PnlChart } from "@/components/pnl-chart";
 import { Button } from "@/components/ui/button";
 import { formatPct, formatUsd } from "@/lib/format";
-import { LIVE_STARTING_EQUITY, type PerformanceReport, type PerformanceSource } from "@/lib/performance";
+import { type PerformanceReport, type PerformanceSource } from "@/lib/performance";
 
 const REFRESH_MS = 30_000;
 
@@ -17,7 +17,6 @@ export function PerformancePanel({ onClose }: { onClose: () => void }) {
   const [source, setSource] = useState<PerformanceSource>("live");
   const [report, setReport] = useState<PerformanceReport | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -35,7 +34,6 @@ export function PerformancePanel({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     let cancelled = false;
     setError(null);
-    setLoading(true);
     setReport(null);
     async function pull() {
       try {
@@ -47,20 +45,16 @@ export function PerformancePanel({ onClose }: { onClose: () => void }) {
         }
         if (!response.ok) {
           setError("Performance could not be loaded.");
-          setLoading(false);
           return;
         }
         setReport((await response.json()) as PerformanceReport);
         setError(null);
-        setLoading(false);
       } catch {
         if (!cancelled) {
           setError("Performance could not be loaded.");
-          setLoading(false);
         }
       }
     }
-    setLoading(true);
     void pull();
     const id = window.setInterval(() => void pull(), REFRESH_MS);
     return () => {
@@ -86,7 +80,6 @@ export function PerformancePanel({ onClose }: { onClose: () => void }) {
             <h2 id={titleId} className="text-xl font-semibold tracking-tight">
               Performance
             </h2>
-            <p className="mt-0.5 text-[13px] text-[#9a9aa3]">{subtitle(source, report)}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex rounded-full border border-[#2c2d33] p-0.5" role="group" aria-label="Performance source">
@@ -103,13 +96,7 @@ export function PerformancePanel({ onClose }: { onClose: () => void }) {
           </div>
         </div>
 
-        <p className="mt-2 text-[12px] text-[#9a9aa3]">Sharpe and Sortino use daily returns, a risk-free rate of 0, and √365. Drawdown is peak to trough on equity.</p>
-
-        {error && <p className="mt-3 text-sm text-[#f0abfc]">{error}</p>}
-        {!error && report?.message && (
-          <p className={`mt-3 text-sm ${report.problem ? "text-[#f0abfc]" : "text-[#b7b3d9]"}`}>{report.message}</p>
-        )}
-        {loading && !stats && <p className="mt-6 text-sm text-[#b7b3d9]">Loading performance…</p>}
+        {error && <p className="sr-only">{error}</p>}
 
         {stats && (
           <>
@@ -174,24 +161,6 @@ function ChartMark() {
       <path d="M1 12.5 5 8l2.5 2.5L15 3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
-}
-
-function subtitle(source: PerformanceSource, report: PerformanceReport | null) {
-  if (source === "live") {
-    const start = plainMoney(report?.startingEquity ?? LIVE_STARTING_EQUITY);
-    return `Kraken Futures round trips since 25 Nov 2026 · start ${start}`;
-  }
-  if (report?.startingEquity == null) return "Push a backtest with the ingest token.";
-  const when = report.asOf ? ` · updated ${formatUpdated(report.asOf)}` : "";
-  return `Backtest · start ${plainMoney(report.startingEquity)}${when}`;
-}
-
-function formatUpdated(ms: number) {
-  return new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Sofia", day: "numeric", month: "short", year: "numeric" }).format(new Date(ms));
-}
-
-function plainMoney(value: number) {
-  return `$${value.toLocaleString("en-US", { minimumFractionDigits: Number.isInteger(value) ? 0 : 2, maximumFractionDigits: 2 })}`;
 }
 
 function money(value: number | null) {

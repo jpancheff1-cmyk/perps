@@ -1,38 +1,51 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ActivityStream } from "@/components/activity-stream";
-import { CoinField } from "@/components/coin-field";
+import { BotPanels, emptyBots } from "@/components/bots-strip";
 import { ForceStop } from "@/components/force-stop";
+import { AskCurve, Digits, Ecg, ExposureBars, GlobeLink, Heatmap, Oscillator, PayoffBars, Ticker } from "@/components/fui/widgets";
 import { KrakenStrip } from "@/components/kraken-strip";
 import { OneUp } from "@/components/one-up";
 import { PositionBoard } from "@/components/position-board";
 import { PerformancePanel } from "@/components/performance-panel";
 import { OpenFuturesTrades } from "@/components/trades-panel";
+import { demoDesk } from "@/lib/demo-desk";
+import { formatPrice, formatUsd } from "@/lib/format";
+import { realizedSeries } from "@/lib/pnl";
 import { CLIENT_POLL_MS } from "@/lib/poll";
 import { formatSofiaTime } from "@/lib/time";
-import { formatUsd } from "@/lib/format";
-import type { DeskPayload, Trade } from "@/lib/types";
+import type { DeskPayload, MarketCandle, PositionChart, Trade } from "@/lib/types";
+
+const WireGlobe = dynamic(() => import("@/components/fui/globe").then((mod) => mod.WireGlobe), {
+  ssr: false,
+  loading: () => null,
+});
 
 const NAV = [
-  { id: "top", label: "Dashboard" },
   { id: "balances", label: "Futures" },
   { id: "chart", label: "Chart" },
   { id: "wallet", label: "Wallet" },
-  { id: "activity", label: "Activity" },
+  { id: "activity", label: "Tape" },
+  { id: "xstocks", label: "XStocks" },
+  { id: "dca", label: "DCA" },
 ];
 
-export function Desk() {
+export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
   const router = useRouter();
   const [state, setState] = useState<DeskPayload | null>(null);
   const [error, setError] = useState(false);
   const [clock, setClock] = useState("");
   const [performanceOpen, setPerformanceOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [section, setSection] = useState("top");
+  const [section, setSection] = useState("balances");
   const [period, setPeriod] = useState<PeriodId>("day");
   const [symbol, setSymbol] = useState<string | null>(null);
+  const [reduced, setReduced] = useState(false);
+  const [demoOn, setDemoOn] = useState(false);
+  const [bookOpen, setBookOpen] = useState(false);
 
   async function refresh() {
     try {
@@ -51,6 +64,20 @@ export function Desk() {
       setError(true);
     }
   }
+
+  useEffect(() => {
+    if (!allowDemo) return;
+    const flagged = new URLSearchParams(window.location.search).get("demo") === "1";
+    setDemoOn(flagged || process.env.NODE_ENV === "development");
+  }, [allowDemo]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const apply = () => setReduced(media.matches);
+    apply();
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
+  }, []);
 
   useEffect(() => {
     const tick = () => setClock(formatSofiaTime(Date.now()));
@@ -93,123 +120,366 @@ export function Desk() {
     router.refresh();
   }
 
-  const total = state ? connectedTotal(state) : null;
-  const periods = state ? periodPnl(state.trades) : { day: null, week: null, month: null };
+  const [fixture] = useState(() => demoDesk());
+  const view = demoOn ? fixture : state;
+  const total = view ? connectedTotal(view) : null;
+  const periods = view ? periodPnl(view.trades) : { day: null, week: null, month: null };
+  const activePeriod = periods[period];
+  const charts = view?.charts ?? [];
+  const nodes = globeNodes(charts, view);
+  const focus = symbol ?? nodes[0]?.symbol ?? null;
+  const focusChart = charts.find((chart) => chart.symbol === focus) ?? charts[0];
+  const closes = focusChart?.candles.map((candle) => candle.c) ?? [];
+  const returns = closes.slice(1).map((close, index) => close - closes[index]);
+  const btc = quote(charts, view, "BTC");
+  const openCount = view?.account.positions.filter((position) => position.size).length ?? 0;
+  const heat = fillCells(charts);
+  const bars = exposureRows(view);
+  const curve = view ? realizedSeries(view.trades) : [];
+  const tape = tickerItems(charts, view);
+  const feed = (view?.items ?? []).map((item) => item.title).filter(Boolean);
+  const imbalance = bookImbalance(view);
+  const direction = view?.account.connected ? view.account.unrealizedPnl : activePeriod;
 
   return (
-    <div className="relative z-10 min-h-screen md:grid md:grid-cols-[168px_minmax(0,1fr)]">
-      <CoinField />
-      <aside className="relative z-10 hidden min-h-screen flex-col border-r border-[#2c2d33] bg-[#070709]/90 px-3 py-4 md:flex">
-        <div className="mb-5 flex items-center gap-2 px-1">
-          <span className="grid h-8 w-8 place-items-center rounded-full bg-[#f5d547] text-sm font-black text-[#1a1400]">M</span>
-          <div className="text-sm font-semibold text-[#f5d547]">Mission</div>
+    <div className="fui-grid fui-screen relative z-10 bg-[#070710] text-[#e7f6ff] pb-[env(safe-area-inset-bottom)]">
+      <GlobeLink symbol={focus} reduced={reduced} />
+      <header className="g-head fui-panel flex flex-wrap items-center gap-x-3 gap-y-1 px-2 py-1">
+        <span className="grid h-7 w-7 place-items-center border border-[#00f0ff] text-[11px] font-bold text-[#00f0ff]">PS</span>
+        <div className="min-w-0">
+          <h1 className="text-[13px] font-bold tracking-[0.14em] text-[#00f0ff] uppercase">pspspsps // Mission Control</h1>
         </div>
-        <nav className="flex flex-1 flex-col gap-1" aria-label="Sections">
-          {NAV.map((item) => (
-            <a key={item.id} href={`#${item.id}`} aria-current={section === item.id ? "true" : undefined} onClick={() => setSection(item.id)} className={`rounded-xl px-3 py-2 text-[15px] transition ${section === item.id ? "bg-[#f5d547]/15 text-[#f5d547]" : "text-[#c6c6cc] hover:bg-[#17181c] hover:text-[#f5d547]"}`}>
-              {item.label}
-            </a>
-          ))}
-        </nav>
-        <button type="button" onClick={() => void lock()} className="mt-3 rounded-xl px-3 py-2 text-left text-[15px] text-[#c6c6cc] transition hover:bg-[#17181c] hover:text-[#f5d547]">
-          Lock
-        </button>
-      </aside>
-      <div id="top" className="relative z-10 min-w-0 px-3 pt-3 pb-[calc(4.25rem+env(safe-area-inset-bottom))] md:px-4 md:pt-3 md:pb-4">
-        <header className="mb-2 flex flex-wrap items-center gap-2">
-          <h1 className="text-xl font-semibold text-[#f5d547]">Dashboard</h1>
-          <div className="ml-auto flex flex-wrap items-center gap-1.5">
-            <nav className="flex gap-1 md:hidden" aria-label="Sections">
-              {NAV.map((item) => (
-                <a key={item.id} href={`#${item.id}`} aria-current={section === item.id ? "true" : undefined} onClick={() => setSection(item.id)} className={`rounded-full border px-2.5 py-1 text-sm transition ${section === item.id ? "border-[#f5d547] bg-[#f5d547]/15 text-[#f5d547]" : "border-[#2c2d33] text-[#c6c6cc] hover:border-[#f5d547]"}`}>
-                  {item.label}
-                </a>
-              ))}
-            </nav>
-            {state && <OneUp items={state.items} trades={state.trades} />}
-            <span className="rounded-full border border-[#3a3b42] bg-[#17181c] px-2.5 py-1 text-sm text-[#f5d547]">{clock || "—"} Sofia</span>
-            <button type="button" onClick={() => void lock()} className="rounded-full border border-[#3a3b42] px-2.5 py-1 text-sm text-[#f4f4f5] transition hover:border-[#f5d547] hover:text-[#f5d547] md:hidden">
-              Lock
-            </button>
-          </div>
-        </header>
-        <label className="mb-2 block">
-          <span className="sr-only">Search the desk</span>
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search symbols, orders, activity"
-            className="h-10 w-full rounded-full border border-[#2c2d33] bg-[#121316] px-3 text-[15px] text-[#f4f4f5] outline-none transition placeholder:text-[#9a9aa3] focus:border-[#f5d547]"
-          />
-        </label>
-        {error && <p className="mb-2 text-[13px] text-[#f5d547]">The desk could not refresh. Trying again.</p>}
-        {state ? (
+        <div className="flex flex-wrap gap-1 text-[11px] uppercase">
+          <Stat label="BTC" value={btc} />
+          <Stat label="Matched" value={view ? String(openCount) : "—"} />
+          <Stat label="Fair" value={periods.day == null ? "—" : formatUsd(periods.day)} />
+          <Stat label="Imbalance" value={imbalance} />
+        </div>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <span className="text-lg font-bold text-[#00f0ff] tabular-nums">{clock || "—"}</span>
+          <nav className="flex gap-1" aria-label="Sections">
+            {NAV.map((item) => (
+              <a key={item.id} href={`#${item.id}`} aria-current={section === item.id ? "true" : undefined} onClick={() => setSection(item.id)} className={`px-1 text-[10px] uppercase ${section === item.id ? "text-[#00f0ff]" : "text-[#8fb4c9]"}`}>
+                {item.label}
+              </a>
+            ))}
+          </nav>
+          <label>
+            <span className="sr-only">Search the desk</span>
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="SEARCH" className="h-7 w-24 border border-[#16324a] bg-transparent px-1 text-[11px] uppercase outline-none focus:border-[#00f0ff]" />
+          </label>
+          {view && <OneUp items={view.items} trades={view.trades} />}
           <ForceStop
-            armed={state.forceStopArmed}
+            compact
+            armed={state?.forceStopArmed ?? false}
             onDone={() => void refresh()}
             companion={
-              <button
-                type="button"
-                onClick={() => setPerformanceOpen(true)}
-                className="grid min-h-14 w-full place-items-center rounded-2xl bg-[#f5d547] px-2 text-center text-[17px] font-black leading-tight tracking-wide text-[#1a1400] transition select-none hover:brightness-110 active:brightness-95 sm:px-3 sm:text-[19px]"
-              >
+              <button type="button" onClick={() => setPerformanceOpen(true)} className="h-7 bg-[#00f0ff] px-2 text-[11px] font-bold tracking-wide text-[#041018] uppercase">
                 Performance
               </button>
             }
           />
-        ) : null}
-        <section id="balances" className="surface mt-2 px-3 py-3 sm:px-4">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <div className="text-sm tracking-[0.14em] text-[#9a9aa3] uppercase">Total balance</div>
-              <div className="num-pop text-[2.35rem] leading-none font-semibold tracking-tight text-[#f4f4f5] sm:text-[2.75rem]" key={total ?? "empty"}>{total == null ? "—" : formatUsd(total).replace(/^\+/, "")}</div>
-              <p className="mt-1 text-sm text-[#9a9aa3]">Futures, spot, and Earn when those reads are connected.</p>
-            </div>
-            <div className="flex gap-1.5 text-sm" role="group" aria-label="Realized window">
-              <Period id="day" label="Today" value={periods.day} active={period === "day"} onPick={setPeriod} />
-              <Period id="week" label="7 Days" value={periods.week} active={period === "week"} onPick={setPeriod} />
-              <Period id="month" label="30 Days" value={periods.month} active={period === "month"} onPick={setPeriod} />
-            </div>
-          </div>
-        </section>
-        {state ? (
-          <KrakenStrip
-            account={state.account}
-            spot={state.spot}
-            earn={state.earn}
-            spotOrders={state.spotOrders}
-            charts={state.charts}
-            query={query}
-            selected={symbol}
-            onSelect={(next) => {
-              setSymbol(next);
-              setSection("chart");
-              document.getElementById("chart")?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "nearest" });
-            }}
-          />
-        ) : (
-          <Loading label="Loading the account…" />
-        )}
-        <div className="mt-2 grid items-start gap-2 xl:grid-cols-[minmax(260px,340px)_minmax(0,1fr)]">
-          {state ? <OpenFuturesTrades account={state.account} query={query} /> : <Loading label="Loading trades…" />}
-          <div id="chart">{state ? <PositionBoard positions={state.account.positions} charts={state.charts} query={query} selectedSymbol={symbol} onSelectSymbol={setSymbol} /> : null}</div>
+          <button type="button" onClick={() => void lock()} className="h-7 border border-[#16324a] px-2 text-[11px] uppercase">Lock</button>
         </div>
-        {state ? <ActivityStream items={state.items} chatRelay={state.chatRelay} onRefresh={() => void refresh()} query={query} /> : <Loading label="Loading activity…" />}
+      </header>
+      <div className="g-feed flex items-center gap-2 overflow-hidden border border-[#ff2a2a]/60 bg-[#2a0610] px-2 text-[11px] tracking-wide text-[#ff5a7a] uppercase">
+        <span className="shrink-0 font-bold text-[#ff2a2a]">● Live feed</span>
+        <div className="min-w-0 flex-1"><Ticker bare items={feed} reduced={reduced} /></div>
+      </div>
+      <BotPanels bots={view?.bots ?? emptyBots()} />
+      <section className="g-wallet fui-panel flex flex-col px-2 py-1">
+        <PanelHead title="Wallet" tag={view?.account.connected ? "LIVE" : "OFF"} tone={view?.account.connected ? "green" : "red"} />
+        <div className="text-[clamp(1.4rem,2.4vw,2.2rem)] leading-none font-bold text-[#39ff14]">
+          <Digits value={total == null ? "—" : formatUsd(total)} />
+        </div>
+        <dl className="mt-1 grid grid-cols-2 gap-x-2 text-[11px] uppercase">
+          <Fact label="Unrealized" value={view?.account.connected ? formatUsd(view.account.unrealizedPnl) : "—"} />
+          <Fact label="Margin" value={view?.account.connected ? formatUsd(view.account.availableMargin) : "—"} />
+          <Fact label="Spot" value={view?.spot.connected && view.spot.totalUsd != null ? formatUsd(view.spot.totalUsd) : "—"} />
+          <Fact label="Earn" value={view?.earn.connected && view.earn.totalUsd != null ? formatUsd(view.earn.totalUsd) : "—"} />
+          <Fact label="Open" value={view ? String(openCount) : "—"} />
+          <Fact label="Today" value={periods.day == null ? "—" : formatUsd(periods.day)} />
+        </dl>
+        <div className="mt-1 flex gap-1" role="group" aria-label="Realized window">
+          <Period id="day" label="1D" value={periods.day} active={period === "day"} onPick={setPeriod} />
+          <Period id="week" label="7D" value={periods.week} active={period === "week"} onPick={setPeriod} />
+          <Period id="month" label="30D" value={periods.month} active={period === "month"} onPick={setPeriod} />
+        </div>
+        <details id="wallet" className="mt-1 min-h-0">
+          <summary className="cursor-pointer text-[10px] text-[#00f0ff] uppercase">Spot · earn · orders</summary>
+          {view ? (
+            <div className="max-h-40 overflow-auto">
+              <KrakenStrip account={view.account} spot={view.spot} earn={view.earn} spotOrders={view.spotOrders} charts={charts} query={query} selected={focus} onSelect={setSymbol} />
+            </div>
+          ) : (
+            <Loading label="Loading the account…" />
+          )}
+        </details>
+      </section>
+      <section className="g-osc fui-panel flex flex-col px-2 py-1">
+        <PanelHead title="Model-book edge oscillator" tag={focus ? coinName(focus) : "—"} />
+        <div className="min-h-16 flex-1">
+          <Oscillator values={returns} />
+        </div>
+      </section>
+      <section className="g-heat fui-panel flex flex-col px-2 py-1">
+        <PanelHead title="Fill arrival" tag="EDGE" tone="yellow" />
+        <Heatmap cells={heat} />
+        <ul className="mt-1 space-y-0.5 text-[11px] uppercase text-[#8fb4c9]">
+          {charts.slice(0, 5).map((chart) => {
+            const first = chart.candles[0]?.c;
+            const change = first && chart.last ? ((chart.last - first) / first) * 100 : null;
+            return (
+              <li key={chart.symbol} className="flex justify-between gap-2">
+                <span>{coinName(chart.symbol)}</span>
+                <span className={change == null ? "" : change >= 0 ? "text-[#ffcc00]" : "text-[#6aa7ff]"}>{change == null ? "—" : `${change.toFixed(2)}%`}</span>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+      <section className="g-pay fui-panel flex flex-col px-2 py-1">
+        <PanelHead title="Payoff" tag="TAPE" />
+        <PayoffBars values={(view?.trades ?? []).map((trade) => trade.pnlUsd).filter((value): value is number => value != null)} />
+      </section>
+      <section id="chart" className="g-ask fui-panel flex min-h-0 flex-col px-2 py-1">
+        <PanelHead title={focus ? `Ask curve · ${coinName(focus)}` : "Ask curve"} tag={focusChart?.last == null ? "—" : formatPrice(focusChart.last)} />
+        <div className="min-h-12 flex-1">{bookOpen && view ? <PositionBoard positions={view.account.positions} charts={charts} query={query} selectedSymbol={focus} onSelectSymbol={setSymbol} /> : <AskCurve values={closes} />}</div>
+        <button type="button" onClick={() => setBookOpen((open) => !open)} className="text-left text-[10px] uppercase text-[#00f0ff]">{bookOpen ? "Show curve" : "Show book"}</button>
+        <dl className="grid grid-cols-3 text-[10px] uppercase text-[#8fb4c9]">
+          <Fact label="Support" value={focusChart?.support == null ? "—" : formatPrice(focusChart.support)} />
+          <Fact label="Last" value={focusChart?.last == null ? "—" : formatPrice(focusChart.last)} />
+          <Fact label="Resistance" value={focusChart?.resistance == null ? "—" : formatPrice(focusChart.resistance)} />
+        </dl>
+      </section>
+      <section className="g-shell fui-panel relative flex min-h-64 flex-col px-2 py-1">
+        <PanelHead title="Neural shell" tag="FAIR-P" />
+        <div className="min-h-0 flex-1">
+          {nodes.length > 0 && <WireGlobe nodes={nodes} active={focus} reduced={reduced} />}
+        </div>
+      </section>
+      <section className="g-trades min-h-0 overflow-auto">
+        {view ? <OpenFuturesTrades account={view.account} settled={view.trades.filter((trade) => trade.status === "closed").slice(0, 4)} query={query} /> : <Loading label="Loading trades…" />}
+      </section>
+      <section className="g-quant fui-panel flex min-h-0 flex-col px-2 py-1">
+        <PanelHead title="Quant metrics" tag="INVENTORY" tone="yellow" />
+        <div className="grid min-h-0 flex-1 grid-cols-[1.2fr_1fr] gap-1">
+          <CandleStrip candles={focusChart?.candles.slice(-28) ?? []} />
+          <ExposureBars rows={bars} />
+        </div>
+      </section>
+      <section className="g-state fui-panel flex min-h-0 flex-col px-2 py-1">
+        <PanelHead title="State-space estimator" tag="KALMAN" />
+        <div className="min-h-0 flex-1"><Ecg points={curve} /></div>
+      </section>
+      <section id="activity" className="g-trace fui-panel flex min-h-0 flex-col px-2 py-1">
+        <PanelHead title="Decision trace" tag="LOG" tone="green" />
+        <div className="min-h-0 flex-1 overflow-auto text-[11px] leading-tight">
+          {(view?.items ?? []).slice(0, 8).map((item) => (
+            <p key={item.id} className={item.type === "close" ? "text-[#ffcc00]" : item.type === "fill" ? "text-[#39ff14]" : "text-[#9fd8ff]"}>
+              <span className="text-[#5f7d90]">{new Date(item.ts).toISOString().slice(11, 16)} </span>
+              {item.title}
+              {item.body ? ` · ${item.body}` : ""}
+            </p>
+          ))}
+          <details>
+            <summary className="cursor-pointer text-[10px] text-[#00f0ff] uppercase">Chat</summary>
+            {view ? <ActivityStream items={view.items} chatRelay={view.chatRelay} onRefresh={() => void refresh()} query={query} embedded /> : <Loading label="Loading activity…" />}
+          </details>
+        </div>
+      </section>
+      <section id="balances" className="g-phase fui-panel flex min-h-0 flex-col px-2 py-1">
+        <PanelHead title="Inventory phase portrait" tag="HEDGE" tone="yellow" />
+        <div className="min-h-0 flex-1"><PhaseFan points={curve.map((point) => point.cum)} /></div>
+        <div className={`text-[clamp(1.3rem,2vw,1.8rem)] leading-none font-bold ${direction == null ? "text-[#8fb4c9]" : direction < 0 ? "text-[#ff2a6a]" : "text-[#39ff14]"}`}>
+          {direction == null ? "—" : direction < 0 ? "DOWN" : "UP"}
+        </div>
+        <div className="text-[12px] text-[#e7f6ff]"><Digits value={direction == null ? "—" : formatUsd(direction)} /></div>
+      </section>
+      <div className="g-tick">
+        <Ticker items={tape} reduced={reduced} />
       </div>
       {performanceOpen ? <PerformancePanel onClose={() => setPerformanceOpen(false)} /> : null}
     </div>
   );
 }
 
+function PanelHead({ title, tag, tone = "cyan" }: { title: string; tag: string; tone?: "cyan" | "green" | "yellow" | "red" }) {
+  const color = tone === "green" ? "text-[#39ff14]" : tone === "yellow" ? "text-[#ffcc00]" : tone === "red" ? "text-[#ff2a6a]" : "text-[#00f0ff]";
+  return (
+    <div className="mb-1 flex items-center justify-between gap-2">
+      <h2 className="truncate text-[11px] tracking-[0.12em] text-[#9fd8ff] uppercase">{title}</h2>
+      <span className={`shrink-0 text-[10px] uppercase ${color}`}>{tag}</span>
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="border border-[#16324a] px-1.5 py-0.5">
+      <span className="block text-[9px] text-[#5f7d90]">{label}</span>
+      <span className="text-[#e7f6ff]">{value}</span>
+    </span>
+  );
+}
+
+function TypedLine({ text, reduced }: { text: string; reduced: boolean }) {
+  const [count, setCount] = useState(text.length);
+  useEffect(() => {
+    if (reduced) {
+      setCount(text.length);
+      return;
+    }
+    setCount(0);
+    const id = window.setInterval(() => {
+      setCount((current) => (current >= text.length ? text.length : current + 1));
+    }, 18);
+    return () => window.clearInterval(id);
+  }, [reduced, text]);
+  return <p className="mt-2 min-h-10 text-sm text-[#b7fff8]">{text.slice(0, count)}</p>;
+}
+
 type PeriodId = "day" | "week" | "month";
 
 function Period({ id, label, value, active, onPick }: { id: PeriodId; label: string; value: number | null; active: boolean; onPick: (id: PeriodId) => void }) {
-  const tone = value == null || value === 0 ? "text-[#9a9aa3]" : value > 0 ? "text-[#3ddc97]" : "text-[#fb7185]";
+  const tone = value == null || value === 0 ? "text-[#8fb4c9]" : value > 0 ? "text-[#39ff14]" : "text-[#ff2a6a]";
   return (
-    <button type="button" aria-pressed={active} onClick={() => onPick(id)} className={`min-w-[4.75rem] rounded-xl border px-2 py-1 text-left transition ${active ? "border-[#f5d547] bg-[#f5d547]/10" : "border-transparent hover:border-[#3a3b42]"}`}>
-      <div className="text-sm text-[#9a9aa3]">{label}</div>
-      <div className={`num-pop text-[15px] font-semibold ${tone}`} key={value ?? "empty"}>{value == null ? "—" : formatUsd(value)}</div>
+    <button type="button" aria-pressed={active} onClick={() => onPick(id)} className={`border px-1.5 py-0.5 text-left text-[10px] uppercase ${active ? "border-[#00f0ff] text-[#00f0ff]" : "border-[#16324a] text-[#8fb4c9]"}`}>
+      {label}
+      <div className={`text-sm ${tone}`}>{value == null ? "—" : formatUsd(value)}</div>
     </button>
+  );
+}
+
+function coinName(symbol: string) {
+  let name = symbol.toUpperCase().replace(/^(PF_|PI_|FI_|FF_)/, "");
+  name = name.replace(/(USDT|USDC|USD)$/, "");
+  if (name === "XBT") return "BTC";
+  return name || symbol.toUpperCase();
+}
+
+function globeNodes(charts: PositionChart[], state: DeskPayload | null) {
+  const names = new Set<string>();
+  for (const chart of charts) if (chart.symbol) names.add(chart.symbol);
+  for (const position of state?.account.positions ?? []) if (position.symbol) names.add(position.symbol);
+  for (const asset of state?.spot.assets ?? []) if (asset.asset) names.add(asset.asset);
+  return [...names].slice(0, 32).map((symbol) => ({ symbol }));
+}
+
+function quote(charts: PositionChart[], state: DeskPayload | null, coin: string) {
+  const chart = charts.find((item) => coinName(item.symbol) === coin && item.last != null);
+  if (chart?.last != null) return formatPrice(chart.last);
+  const asset = state?.spot.assets.find((item) => coinName(item.asset) === coin && item.usd != null);
+  if (asset?.usd != null && asset.balance) return formatPrice(asset.usd / asset.balance);
+  return "—";
+}
+
+function fillCells(charts: PositionChart[]) {
+  const cells: { symbol: string; change: number | null }[] = [];
+  for (const chart of charts) {
+    const candles = chart.candles.slice(-12);
+    for (let index = 1; index < candles.length; index += 1) {
+      const previous = candles[index - 1]?.c;
+      const close = candles[index]?.c;
+      const change = previous && close ? ((close - previous) / previous) * 100 : null;
+      cells.push({ symbol: `${coinName(chart.symbol)}-${index}`, change });
+    }
+  }
+  return cells;
+}
+
+function exposureRows(state: DeskPayload | null) {
+  if (!state) return [];
+  const rows = new Map<string, { symbol: string; long: number; short: number }>();
+  for (const position of state.account.positions) {
+    if (!position.symbol || position.size == null || position.markPrice == null) continue;
+    const notion = Math.abs(position.size * position.markPrice);
+    const row = rows.get(position.symbol) ?? { symbol: coinName(position.symbol), long: 0, short: 0 };
+    if (position.side === "short") row.short += notion;
+    else row.long += notion;
+    rows.set(position.symbol, row);
+  }
+  return [...rows.values()];
+}
+
+function tickerItems(charts: PositionChart[], state: DeskPayload | null) {
+  const items: string[] = [];
+  for (const chart of charts) if (chart.last != null) items.push(`${coinName(chart.symbol)} ${formatPrice(chart.last)}`);
+  for (const asset of state?.spot.assets ?? []) if (asset.usd != null) items.push(`${asset.asset} ${formatUsd(asset.usd)}`);
+  return items;
+}
+
+function marginRatio(state: DeskPayload | null) {
+  if (!state?.account.connected || state.account.portfolioValue == null || state.account.availableMargin == null || state.account.portfolioValue <= 0) return null;
+  return Math.min(1, Math.max(0, (state.account.portfolioValue - state.account.availableMargin) / state.account.portfolioValue));
+}
+
+function exposureRatio(state: DeskPayload | null) {
+  if (!state?.account.connected || state.account.portfolioValue == null || state.account.portfolioValue <= 0) return null;
+  const notion = exposureRows(state).reduce((sum, row) => sum + row.long + row.short, 0);
+  if (notion <= 0) return null;
+  return Math.min(1, notion / state.account.portfolioValue);
+}
+
+function bookImbalance(state: DeskPayload | null) {
+  if (!state?.account.connected) return "—";
+  let long = 0;
+  let short = 0;
+  for (const position of state.account.positions) {
+    if (position.size == null || position.markPrice == null) continue;
+    const notion = Math.abs(position.size * position.markPrice);
+    if (position.side === "short") short += notion;
+    else long += notion;
+  }
+  const total = long + short;
+  if (total <= 0) return "—";
+  return `${(((long - short) / total) * 100).toFixed(1)}%`;
+}
+
+function Fact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-[#5f7d90]">{label}</dt>
+      <dd className="truncate text-[#e7f6ff]">{value}</dd>
+    </div>
+  );
+}
+
+function CandleStrip({ candles }: { candles: MarketCandle[] }) {
+  if (candles.length < 2) return null;
+  const min = Math.min(...candles.map((candle) => candle.l));
+  const max = Math.max(...candles.map((candle) => candle.h));
+  const span = max - min || 1;
+  const width = 160;
+  const height = 70;
+  const slot = width / candles.length;
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} className="h-full w-full" role="img" aria-label="Recent candles">
+      {candles.map((candle, index) => {
+        const up = candle.c >= candle.o;
+        const y = (price: number) => height - ((price - min) / span) * (height - 4);
+        return (
+          <g key={candle.t}>
+            <line x1={index * slot + slot / 2} x2={index * slot + slot / 2} y1={y(candle.h)} y2={y(candle.l)} stroke={up ? "#39ff14" : "#ff2a6a"} strokeWidth="1" />
+            <rect x={index * slot + 1} y={y(Math.max(candle.o, candle.c))} width={Math.max(1, slot - 2)} height={Math.max(1, Math.abs(y(candle.o) - y(candle.c)))} fill={up ? "#39ff14" : "#ff2a6a"} />
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+function PhaseFan({ points }: { points: number[] }) {
+  if (points.length < 2) return null;
+  const min = Math.min(...points);
+  const max = Math.max(...points);
+  const span = max - min || 1;
+  return (
+    <svg viewBox="0 0 160 64" className="h-full min-h-16 w-full" role="img" aria-label="Phase portrait">
+      {points.map((value, index) => (
+        <line key={index} x1="6" y1="60" x2={16 + (index / (points.length - 1)) * 136} y2={60 - ((value - min) / span) * 52} stroke={index % 2 ? "#ff8800" : "#ffcc00"} strokeWidth="0.7" />
+      ))}
+    </svg>
   );
 }
 
@@ -237,9 +507,5 @@ async function loadDesk(): Promise<{ status: number; payload: DeskPayload | null
 }
 
 function Loading({ label }: { label: string }) {
-  return (
-    <section className="surface mt-2 px-3 py-3">
-      <p className="text-[15px] text-[#9a9aa3]">{label}</p>
-    </section>
-  );
+  return <span className="sr-only">{label}</span>;
 }
