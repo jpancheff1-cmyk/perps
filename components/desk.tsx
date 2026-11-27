@@ -18,7 +18,7 @@ import { liquidationFeedLines } from "@/lib/live-feed";
 import { nextBeams, type BeamTarget } from "@/lib/trade-beam";
 import type { PaperSession } from "@/lib/paper";
 import { paperView } from "@/lib/paper-view";
-import { equityStats } from "@/lib/equity-math";
+import { equityPlot, equityStats } from "@/lib/equity-math";
 import { marginBreakdown } from "@/lib/margin";
 import { perpSymbol, UNIVERSE } from "@/lib/universe";
 import { formatPrice, formatUsd } from "@/lib/format";
@@ -331,9 +331,11 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
           })}
         </ul>
       </section>
-      <section className="g-shell fui-panel relative flex h-full min-h-0 flex-col px-2 py-1">
-        <PanelHead title="Neural shell" />
-        <div className="relative min-h-0 flex-1">
+      <section className="g-shell fui-panel relative h-full min-h-0">
+        <div className="absolute top-1 right-2 left-2 z-10">
+          <PanelHead title="Neural shell" />
+        </div>
+        <div className="absolute inset-0">
           {shell && <WireGlobe nodes={nodes} active={focus} reduced={reduced} spit={spit} />}
         </div>
       </section>
@@ -567,25 +569,30 @@ function CandleStrip({ candles }: { candles: MarketCandle[] }) {
 }
 
 function EquityCurve({ points }: { points: { ts: number; equity: number }[] }) {
-  if (points.length < 2) return null;
-  let peak = points[0].equity;
-  const peaks = points.map((point) => {
+  const linePoints = equityPlot(points);
+  if (linePoints.length < 2) return null;
+  let peak = linePoints[0].equity;
+  const peaks = linePoints.map((point) => {
     if (point.equity > peak) peak = point.equity;
     return peak;
   });
-  const min = Math.min(...points.map((point) => point.equity));
-  const max = Math.max(...peaks);
+  const dataMin = Math.min(...linePoints.map((point) => point.equity));
+  const dataMax = Math.max(...peaks);
+  const pad = Math.max((dataMax - dataMin) * 0.35, Math.abs(dataMax) * 0.006);
+  const min = dataMin - pad;
+  const max = dataMax + pad * 0.25;
   const span = max - min || 1;
-  const y = (value: number) => 58 - ((value - min) / span) * 52;
-  const line = points.map((point, index) => `${index === 0 ? "M" : "L"}${((index / (points.length - 1)) * 160).toFixed(1)} ${y(point.equity).toFixed(1)}`).join(" ");
-  const shade = `${line} ${peaks
-    .map((value, index) => `L${((index / (peaks.length - 1)) * 160).toFixed(1)} ${y(value).toFixed(1)}`)
-    .reverse()
+  const y = (value: number) => 58 - ((value - min) / span) * 50;
+  const x = (index: number) => (index / (linePoints.length - 1)) * 160;
+  const equityPath = linePoints.map((point, index) => `${index === 0 ? "M" : "L"}${x(index).toFixed(1)} ${y(point.equity).toFixed(1)}`).join(" ");
+  const band = 2.4;
+  const shade = `${peaks.map((value, index) => `${index === 0 ? "M" : "L"}${x(index).toFixed(1)} ${(y(value) + 0.4).toFixed(1)}`).join(" ")} ${peaks
+    .map((value, index) => `L${x(peaks.length - 1 - index).toFixed(1)} ${(y(peaks[peaks.length - 1 - index]) + band).toFixed(1)}`)
     .join(" ")} Z`;
   return (
-    <svg viewBox="0 0 160 64" className="h-full min-h-12 w-full" role="img" aria-label="Equity and drawdown">
-      <path d={shade} fill="#ff2a6a" opacity="0.35" />
-      <path d={line} fill="none" stroke="#39ff14" strokeWidth="1.4" />
+    <svg viewBox="0 0 160 64" className="h-full min-h-12 w-full" preserveAspectRatio="none" role="img" aria-label="Equity and drawdown">
+      <path d={shade} fill="#ff2a6a" opacity="0.45" />
+      <path d={equityPath} fill="none" stroke="#39ff14" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   );
 }
