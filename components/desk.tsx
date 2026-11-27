@@ -39,6 +39,8 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
   const [period, setPeriod] = useState<PeriodId>("day");
   const [symbol, setSymbol] = useState<string | null>(null);
   const [reduced, setReduced] = useState(false);
+  const [phone, setPhone] = useState(false);
+  const [chatCollapsed, setChatCollapsed] = useState(false);
   const [demoOn, setDemoOn] = useState(false);
   const [bookOpen, setBookOpen] = useState(false);
 
@@ -65,6 +67,30 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
     const flagged = new URLSearchParams(window.location.search).get("demo") === "1";
     setDemoOn(flagged || process.env.NODE_ENV === "development");
   }, [allowDemo]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 1179px)");
+    const apply = () => setPhone(media.matches);
+    apply();
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
+  }, []);
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    const apply = () => {
+      const inset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
+      document.documentElement.style.setProperty("--keyboard-inset", `${Math.round(inset)}px`);
+    };
+    viewport.addEventListener("resize", apply);
+    viewport.addEventListener("scroll", apply);
+    apply();
+    return () => {
+      viewport.removeEventListener("resize", apply);
+      viewport.removeEventListener("scroll", apply);
+    };
+  }, []);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -244,7 +270,7 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
       <section className="g-shell fui-panel relative flex min-h-64 flex-col px-2 py-1">
         <PanelHead title="Neural shell" />
         <div className="min-h-0 flex-1">
-          {nodes.length > 0 && <WireGlobe nodes={nodes} active={focus} reduced={reduced} />}
+          {!phone && nodes.length > 0 && <WireGlobe nodes={nodes} active={focus} reduced={reduced} />}
         </div>
       </section>
       <section className="g-trades min-h-0 overflow-auto">
@@ -271,11 +297,18 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
         <PanelHead title="Signal watch" />
         <SignalWatchPanel watch={view?.signals ?? null} now={view?.serverTime ?? Date.now()} />
       </section>
-      <section id="chat" className="g-chat fui-panel flex min-h-[168px] flex-col px-2 py-1">
-        <PanelHead title="Chat" />
-        <div className="min-h-0 flex-1">
-          {view ? <ActivityStream items={view.items} chatRelay={view.chatRelay} onRefresh={() => void refresh()} query={query} dock /> : <Loading label="Loading chat…" />}
+      <section id="chat" className="g-chat fui-panel flex min-h-[168px] flex-col px-2 py-1 max-[1179px]:min-h-0">
+        <div className="flex items-center justify-between gap-2">
+          <PanelHead title="Chat" />
+          <button type="button" className="min-h-11 px-3 text-[11px] uppercase text-[#00f0ff] min-[1180px]:hidden" aria-expanded={!chatCollapsed} onClick={() => setChatCollapsed((collapsed) => !collapsed)}>
+            {chatCollapsed ? "Open" : "Hide"}
+          </button>
         </div>
+        {!(phone && chatCollapsed) && (
+          <div className="min-h-0 flex-1 max-[1179px]:max-h-[46vh]">
+            {view ? <ActivityStream items={view.items} chatRelay={view.chatRelay} onRefresh={() => void refresh()} query={query} dock /> : <Loading label="Loading chat…" />}
+          </div>
+        )}
       </section>
       <section id="balances" className="g-phase fui-panel flex min-h-0 flex-col px-2 py-1">
         <PanelHead title="Open risk" tag={risk.totalPct == null ? "—" : `${risk.totalPct.toFixed(1)}%`} tone="yellow" />

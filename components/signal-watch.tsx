@@ -25,7 +25,12 @@ export function SignalWatchPanel({ watch, now }: { watch: SignalWatch | null; no
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="mb-1 text-[13px] font-bold text-[#ffcc00] tabular-nums">{clock(watch?.nextClose ?? now, tick)}</div>
-      <div className="grid grid-cols-[52px_36px_28px_44px_36px_1fr] gap-1 text-[10px] uppercase text-[#5f7d90]">
+      <div className="signal-sort mb-1 flex gap-1 min-[1180px]:hidden">
+        <button type="button" onClick={() => setSort("score")} className="px-2 text-[11px] uppercase text-[#9fd8ff]">Score</button>
+        <button type="button" onClick={() => setSort("coin")} className="px-2 text-[11px] uppercase text-[#9fd8ff]">Coin</button>
+        <button type="button" onClick={() => setSort("adx")} className="px-2 text-[11px] uppercase text-[#9fd8ff]">Adx</button>
+      </div>
+      <div className="signal-head grid grid-cols-[52px_36px_28px_44px_36px_1fr] gap-1 text-[10px] uppercase text-[#5f7d90]">
         <button type="button" onClick={() => setSort("coin")} className="text-left">Coin</button>
         <span>4h</span>
         <span>D50</span>
@@ -35,7 +40,7 @@ export function SignalWatchPanel({ watch, now }: { watch: SignalWatch | null; no
       </div>
       <div className="min-h-16 flex-1 overflow-auto">
         {rows.map((row) => (
-          <div key={row.coin} className="grid grid-cols-[52px_36px_28px_44px_36px_1fr] gap-1 py-0.5 text-[11px] uppercase">
+          <div key={row.coin} className="signal-row grid grid-cols-[52px_36px_28px_44px_36px_1fr] gap-1 py-0.5 text-[11px] uppercase">
             <span className="text-[#e7f6ff]">{row.coin}</span>
             <span className={row.trend === "up" ? "text-[#39ff14]" : row.trend === "down" ? "text-[#ff2a6a]" : "text-[#8fb4c9]"}>{row.trend === "up" ? "Up" : row.trend === "down" ? "Down" : "—"}</span>
             <span className={row.dailySide ? "text-[#39ff14]" : "text-[#8fb4c9]"}>{row.dailySide == null ? "—" : row.dailySide ? "Yes" : "No"}</span>
