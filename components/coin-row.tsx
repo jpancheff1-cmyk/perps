@@ -2,7 +2,7 @@ import { formatPrice } from "@/lib/format";
 import { UNIVERSE } from "@/lib/universe";
 import type { SignalRow } from "@/lib/types";
 
-export function CoinRow({ rows, open }: { rows: SignalRow[]; open: Set<string> }) {
+export function CoinRow({ rows, open, paper = false }: { rows: SignalRow[]; open: Set<string>; paper?: boolean }) {
   const byCoin = new Map(rows.map((row) => [row.coin, row]));
   return (
     <div className="flex w-full min-w-0 gap-2 overflow-x-auto overscroll-x-contain pb-1">
@@ -11,8 +11,9 @@ export function CoinRow({ rows, open }: { rows: SignalRow[]; open: Set<string> }
         const change = row?.change24 ?? null;
         const held = open.has(coin);
         return (
-          <div key={coin} title={coin} className={`flex w-14 shrink-0 flex-col items-center gap-0.5 rounded px-1 py-0.5 ${held ? "ring-1 ring-[#39ff14]" : ""}`}>
+          <div key={coin} title={paper && held ? `PAPER ${coin}` : coin} className={`flex w-14 shrink-0 flex-col items-center gap-0.5 rounded px-1 py-0.5 ${held ? (paper ? "ring-1 ring-[#ffcc00] shadow-[0_0_12px_#ffcc00]" : "ring-1 ring-[#39ff14]") : ""}`}>
             <img src={`/coins/${coin.toLowerCase()}.svg`} alt="" width={22} height={22} className="h-[22px] w-[22px]" />
+            {paper && held && <span className="text-[8px] font-bold text-[#ffcc00]">PAPER</span>}
             <span className="w-full truncate text-center text-[10px] text-[#e7f6ff] tabular-nums">{row?.price == null ? "—" : formatPrice(row.price)}</span>
             <span className={`text-[10px] tabular-nums ${change == null ? "text-[#8fb4c9]" : change >= 0 ? "text-[#39ff14]" : "text-[#ff2a6a]"}`}>
               {change == null ? "—" : `${change > 0 ? "+" : ""}${change.toFixed(1)}%`}

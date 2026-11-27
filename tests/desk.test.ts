@@ -12,7 +12,7 @@ import { equityStats } from "../lib/equity-math.ts";
 import { readEquity, recordEquity, resetEquityForTests } from "../lib/equity-store.ts";
 import { idleFeedLine, lastSofia4h, liveFeedLines, positionLiqLines } from "../lib/live-feed.ts";
 import { parseHistory } from "../lib/market-liqs.ts";
-import { ema, nextSofia4h, scoreSignal } from "../lib/signals.ts";
+import { ema, nextSofia4h, scoreSignal, signalFromCandles } from "../lib/signals.ts";
 import { UNIVERSE } from "../lib/universe.ts";
 import { atr14, entriesToday, openRisk } from "../lib/open-risk.ts";
 import type { ActivityItem } from "../lib/types.ts";
@@ -474,15 +474,96 @@ test("signal rules mark a 4h trend only when ADX and the daily side agree", () =
   assert.equal(formatSofiaTime(nextSofia4h(summer)).slice(0, 5), "11:00");
   const names = UNIVERSE as readonly string[];
   for (const excluded of ["CRO", "QNT", "XMR", "TRX", "SHIB"]) assert.equal(names.includes(excluded), false);
-  const ready = scoreSignal({ close: 120, ema20: 110, ema50: 100, adx: 40, dailyEma: 90, inPosition: false });
+  const ready = scoreSignal({ close: 120, ema20: 110, ema50: 100, prevEma20: 99, prevEma50: 100, adx: 40, dailyEma: 90, inPosition: false });
   assert.equal(ready.trend, "up");
   assert.equal(ready.dailySide, true);
   assert.equal(ready.status, "ready");
-  const near = scoreSignal({ close: 101, ema20: 100, ema50: 99, adx: 20, dailyEma: 100, inPosition: false });
-  assert.equal(near.status === "near" || near.status === "no", true);
-  assert.equal(scoreSignal({ close: 200, ema20: 90, ema50: 100, adx: 10, dailyEma: 50, inPosition: false }).status, "no");
-  assert.equal(scoreSignal({ close: 120, ema20: 110, ema50: 100, adx: 40, dailyEma: 90, inPosition: true }).status, "in");
+  assert.deepEqual(ready.missing, []);
+  const held = scoreSignal({ close: 120, ema20: 110, ema50: 100, prevEma20: 108, prevEma50: 100, adx: 40, dailyEma: 90, inPosition: false });
+  assert.equal(held.status, "near");
+  assert.deepEqual(held.missing, ["cross"]);
+  const near = scoreSignal({ close: 101, ema20: 100, ema50: 99, prevEma20: 99.5, prevEma50: 99, adx: 20, dailyEma: 100, inPosition: false });
+  assert.equal(near.status, "near");
+  assert.deepEqual(near.missing, ["cross", "adx"]);
+  assert.equal(scoreSignal({ close: 200, ema20: 90, ema50: 100, prevEma20: 95, prevEma50: 100, adx: 10, dailyEma: 50, inPosition: false }).status, "no");
+  assert.equal(scoreSignal({ close: 120, ema20: 110, ema50: 100, prevEma20: 99, prevEma50: 100, adx: 40, dailyEma: 90, inPosition: true }).status, "in");
   for (const coin of UNIVERSE) assert.equal(fs.existsSync(new URL(`../public/coins/${coin.toLowerCase()}.svg`, import.meta.url)), true, coin);
+});
+
+test("FET-like numbers are not READY without a closed cross, closed ADX, and the daily side", () => {
+  // 11:15 UTC PF_FETUSD. Forming bar: EMA20 0.1155 < EMA50 0.1163, ADX 31.9.
+  // Last closed bar ADX is 29.96. Daily close 0.1289 sits under daily EMA50 0.1506, so a long is blocked.
+  const closed = scoreSignal({
+    close: 0.12495,
+    ema20: 0.1141,
+    ema50: 0.1158,
+    prevEma20: 0.113,
+    prevEma50: 0.1154,
+    adx: 29.96,
+    dailyEma: 0.1515,
+    inPosition: false,
+  });
+  assert.notEqual(closed.status, "ready");
+  assert.equal(closed.status, "near");
+  assert.deepEqual(closed.missing, ["cross", "adx"]);
+
+  const forming = scoreSignal({
+    close: 0.1289,
+    ema20: 0.1155,
+    ema50: 0.1163,
+    prevEma20: 0.1141,
+    prevEma50: 0.1158,
+    adx: 31.9,
+    dailyEma: 0.1506,
+    inPosition: false,
+  });
+  assert.notEqual(forming.status, "ready");
+  assert.equal(forming.status, "near");
+  assert.deepEqual(forming.missing, ["cross"]);
+
+  const longBlocked = scoreSignal({
+    close: 0.1289,
+    ema20: 0.1163,
+    ema50: 0.1155,
+    prevEma20: 0.1154,
+    prevEma50: 0.1156,
+    adx: 31.9,
+    dailyEma: 0.1506,
+    inPosition: false,
+  });
+  assert.notEqual(longBlocked.status, "ready");
+  assert.equal(longBlocked.status, "no");
+  assert.deepEqual(longBlocked.missing, ["daily"]);
+
+  const fourH = 4 * 3_600_000;
+  const day = 86_400_000;
+  const stamp = Date.parse("2026-11-27T11:15:00Z");
+  let price = 40;
+  const closes: number[] = [];
+  for (let index = 0; index < 80; index += 1) {
+    price += 1.2;
+    closes.push(price);
+  }
+  for (let index = 0; index < 16; index += 1) {
+    price -= 4;
+    closes.push(price);
+  }
+  closes.push(148.87);
+  const start = stamp - closes.length * fourH;
+  const four = closes.map((close, index) => ({ t: start + index * fourH, h: close * 1.02, l: close * 0.98, c: close }));
+  let dailyPrice = 30;
+  const daily = Array.from({ length: 80 }, (_, index) => {
+    dailyPrice += 0.15;
+    const close = dailyPrice;
+    return { t: stamp - 80 * day + index * day, h: close * 1.01, l: close * 0.99, c: close };
+  });
+  const open = four[four.length - 1].t;
+  const during = signalFromCandles("FET", four, daily, false, open + 1000);
+  const after = signalFromCandles("FET", four, daily, false, open + fourH);
+  assert.equal(during.preview, true);
+  assert.notEqual(during.status, "ready");
+  assert.equal(after.status, "ready");
+  assert.equal(after.preview, false);
 });
 
 test("public history keeps liquidation prints and drops fills", () => {
