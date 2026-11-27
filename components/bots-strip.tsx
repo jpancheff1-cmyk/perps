@@ -19,32 +19,19 @@ export function emptyBots(): BotsView {
 }
 
 export function BotPanels({ bots }: { bots: BotsView }) {
-  const x = bots.xstocks;
   const dca = bots.dca;
   const status = dca.status.replace(/_/g, " ");
   return (
     <>
       <section id="xstocks" className="g-x fui-panel flex min-h-0 flex-col px-2 py-1">
-        <Head title="Xstocks" tag={x.positions.length ? `${x.positions.length} open` : "—"} />
-        <dl className="grid grid-cols-3 gap-x-2 text-[10px] uppercase sm:grid-cols-6">
-          <Cell label="Scan" value={x.scannedAt == null ? "—" : formatSofiaStamp(x.scannedAt)} />
-          <Cell label="Today" value={count(x.signalsToday)} />
-          <Cell label="Week" value={count(x.signalsWeek)} />
-          <Cell label="Win" value={x.winRate == null ? "—" : `${Math.round(x.winRate)}%`} />
-          <Cell label="P&L" value={x.realizedPnl == null ? "—" : formatUsd(x.realizedPnl)} />
-          <Cell label="10x" value={count(x.tradesAt10x)} />
+        <Head title="Xstocks" tag="Paused" tone="yellow" />
+        <dl className="grid grid-cols-3 gap-x-2 text-[10px] uppercase sm:grid-cols-5">
+          <Cell label="Scan" value="—" />
+          <Cell label="Today" value="—" />
+          <Cell label="Week" value="—" />
+          <Cell label="Win" value="—" />
+          <Cell label="P&L" value="—" />
         </dl>
-        <div className="mt-1 min-h-0 flex-1 space-y-0.5 overflow-auto text-[10px] uppercase">
-          {x.positions.map((position) => (
-            <p key={`${position.ticker}-${position.side}`} className="flex justify-between gap-2">
-              <span>
-                <span className={position.side === "short" ? "text-[#ff2a6a]" : "text-[#39ff14]"}>{position.side === "short" ? "Sell" : "Buy up"}</span>
-                {` ${position.ticker} ${formatPrice(position.entry)} ${position.leverage == null ? "—" : `${position.leverage}x`} ${formatUsd(position.notional)}`}
-              </span>
-              <span className={position.upnl != null && position.upnl < 0 ? "text-[#ff2a6a]" : "text-[#39ff14]"}>{formatUsd(position.upnl)}</span>
-            </p>
-          ))}
-        </div>
       </section>
       <section id="dca" className="g-dca fui-panel flex min-h-0 flex-col px-2 py-1">
         <Head title="DCA spot" tag={status} tone={dca.status === "not_started" ? "yellow" : "green"} />

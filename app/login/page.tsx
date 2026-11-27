@@ -15,7 +15,7 @@ export default async function LoginPage({
     <main className="relative z-10 flex min-h-screen items-center justify-center px-4 py-[max(1rem,env(safe-area-inset-bottom))]">
       <form action="/api/auth/login" method="post" className="surface w-full max-w-sm rounded-2xl p-5">
         <p className="text-[12px] tracking-[0.16em] text-[#f5d547] uppercase">Live</p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight">Mission Control</h1>
+        <h1 className="mt-1 text-2xl font-semibold tracking-tight">MISSION CONTROL</h1>
         <p className="mt-1 text-[13px] text-[#9a9aa3]">The account, executed trades, and the tape stay behind this password.</p>
         <label className="mt-4 block text-[13px] text-[#9a9aa3]" htmlFor="password">
           Password

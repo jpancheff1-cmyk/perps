@@ -9,7 +9,7 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Mission Control",
+  title: "MISSION CONTROL",
   description: "Kraken futures, spot, and the activity tape.",
   robots: { index: false, follow: false },
 };

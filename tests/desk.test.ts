@@ -8,6 +8,11 @@ import { NextRequest } from "next/server";
 import { POST as postChat } from "../app/api/chat/route.ts";
 import { applyIngest, readFeed, resetStoreForTests } from "../lib/activity-store.ts";
 import { botsView } from "../lib/bots.ts";
+import { equityStats } from "../lib/equity-math.ts";
+import { readEquity, recordEquity, resetEquityForTests } from "../lib/equity-store.ts";
+import { idleFeedLine, lastSofia4h, liveFeedLines } from "../lib/live-feed.ts";
+import { atr14, entriesToday, openRisk } from "../lib/open-risk.ts";
+import type { ActivityItem } from "../lib/types.ts";
 import { SESSION_COOKIE, checkPassword, readSessionToken, signSession } from "../lib/auth.ts";
 import { resetChatGateForTests } from "../lib/chat.ts";
 import { activityMatches, waitingForReply } from "../lib/feed.ts";
@@ -371,6 +376,129 @@ test("ingest stores xstocks and dca spot without a tape event", () => {
     resetStoreForTests();
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("live feed uses trade fields and leaves chat out", () => {
+  const now = Date.parse("2026-11-27T08:30:00Z");
+  const close = lastSofia4h(now);
+  assert.equal(idleFeedLine(now).includes("4h close · no signals"), true);
+  assert.equal(idleFeedLine(now).startsWith(new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Sofia", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(close)).slice(0, 5)), true);
+  const items: ActivityItem[] = [
+    { id: "c", source: "you", type: "chat", title: "You", body: "status?", tradeId: null, trade: null, ts: now },
+    { id: "r", source: "paperboy", type: "reply", title: "Paperboy", body: "book is quiet.", tradeId: null, trade: null, ts: now - 1_000 },
+    { id: "n", source: "paperboy", type: "status", title: "Paperboy", body: null, tradeId: null, trade: null, ts: now - 2_000 },
+    {
+      id: "f",
+      source: "trading.exe",
+      type: "fill",
+      title: "BTC long filled",
+      body: null,
+      tradeId: "t",
+      trade: { coin: "BTC", side: "long", leverage: 3, size: 0.2, entry: 64250, exit: null, stop: 62000, target: 67000, pnlUsd: null, pnlPct: null, status: "open" },
+      ts: now - 3_000,
+    },
+    {
+      id: "x",
+      source: "trading.exe",
+      type: "close",
+      title: "ETH short settled",
+      body: null,
+      tradeId: "e",
+      trade: { coin: "ETH", side: "short", leverage: 4, size: 1.5, entry: 3200, exit: 3100, stop: 3300, target: 3100, pnlUsd: 10, pnlPct: 1, status: "closed" },
+      ts: now - 4_000,
+    },
+    { id: "s", source: "paperboy", type: "brief", title: "4h close", body: "0 signals", tradeId: null, trade: null, ts: now - 5_000 },
+    { id: "b", source: "paperboy", type: "status", title: "scan", body: "feed down", tradeId: null, trade: null, ts: now - 6_000 },
+  ];
+  const lines = liveFeedLines(items);
+  assert.equal(lines.some((line) => line.includes("You") || line.includes("quiet")), false);
+  assert.equal(lines[0]?.includes("BTC long fill 0.2 @"), true);
+  assert.equal(lines.some((line) => line.includes("ETH short target 1.5 @")), true);
+  assert.equal(lines.some((line) => line.includes("4h close · 0 signals")), true);
+  assert.equal(lines.some((line) => line.includes("scan · feed down")), true);
+  assert.equal(liveFeedLines([]).length, 0);
+});
+
+test("equity snapshots keep peak, drawdown, and today's change", () => {
+  const now = Date.parse("2026-11-27T10:00:00Z");
+  const day = startOfSofiaDay(new Date(now));
+  const stats = equityStats(
+    [
+      { ts: day - 3_600_000, equity: 1000 },
+      { ts: day + 3_600_000, equity: 1200 },
+      { ts: now, equity: 900 },
+    ],
+    now,
+  );
+  assert.equal(stats.current, 900);
+  assert.equal(stats.peak, 1200);
+  assert.equal(stats.maxDrawdownPct, -25);
+  assert.equal(stats.todayPnl, -100);
+  assert.equal(equityStats([], now).current, null);
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "desk-equity-"));
+  const previous = process.env.DATA_DIR;
+  process.env.DATA_DIR = dir;
+  resetStoreForTests();
+  try {
+    assert.equal(applyIngest({ equity: [{ ts: now - 1_000, usd: 1000 }, { ts: now, equity: 1100 }] }).ok, true);
+    assert.equal(readEquity().length, 2);
+    recordEquity(1100, now + 1_000);
+    assert.equal(readEquity().length, 2);
+    assert.equal(applyIngest({ source: "paperboy", type: "order", title: "Nope", equity: 5 }).ok, false);
+    assert.equal(readEquity().at(-1)?.equity, 1100);
+  } finally {
+    if (previous == null) delete process.env.DATA_DIR;
+    else process.env.DATA_DIR = previous;
+    resetEquityForTests();
+    resetStoreForTests();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("open risk prices the stop in percent, ATR, and dollars", () => {
+  const candles = Array.from({ length: 20 }, (_, index) => ({ t: index, o: 100, h: 101, l: 99, c: 100 }));
+  assert.equal(atr14(candles), 2);
+  const risk = openRisk(
+    [
+      {
+        id: "1",
+        symbol: "PF_XBTUSD",
+        side: "long",
+        size: 2,
+        leverage: 3,
+        entry: 100,
+        mark: 100,
+        pnlUsd: 0,
+        pnlPct: 0,
+        liquidation: 80,
+        margin: 60,
+        openedAt: 1,
+        stop: 95,
+        target: null,
+        pending: false,
+      },
+    ],
+    [{ symbol: "PF_XBTUSD", candles, rsi: null, support: null, resistance: null, liqClusters: [], last: 100 }],
+    1000,
+  );
+  assert.equal(risk.rows[0]?.coin, "BTC");
+  assert.equal(risk.rows[0]?.stopPct, 5);
+  assert.equal(risk.rows[0]?.stopAtr, 2.5);
+  assert.equal(risk.rows[0]?.riskUsd, 10);
+  assert.equal(risk.rows[0]?.partialPct, 5);
+  assert.equal(risk.totalPct, 1);
+  const now = Date.parse("2026-11-27T10:00:00Z");
+  assert.equal(
+    entriesToday(
+      [
+        { id: "a", source: "trading.exe", type: "fill", title: "x", body: null, tradeId: null, trade: null, ts: now },
+        { id: "b", source: "trading.exe", type: "fill", title: "y", body: null, tradeId: null, trade: null, ts: now - 3 * 86_400_000 },
+      ],
+      now,
+    ),
+    1,
+  );
 });
 
 function chatRequest(token: string | null, message: string) {

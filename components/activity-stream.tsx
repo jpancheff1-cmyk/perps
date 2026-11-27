@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { activityMatches, type ActivityFilter } from "@/lib/feed";
 import { formatLeverage, formatPrice, formatQty, formatUsd } from "@/lib/format";
-import { formatSofiaWhen } from "@/lib/time";
+import { formatSofiaTime, formatSofiaWhen } from "@/lib/time";
 import type { ActivityItem } from "@/lib/types";
 
 const FILTERS: { id: ActivityFilter; label: string }[] = [
@@ -29,7 +29,7 @@ const TYPE_LABEL: Record<ActivityItem["type"], string> = {
   levels: "Levels",
 };
 
-export function ActivityStream({ items, chatRelay, onRefresh, query = "", embedded = false }: { items: ActivityItem[]; chatRelay: boolean; onRefresh: () => void; query?: string; embedded?: boolean }) {
+export function ActivityStream({ items, chatRelay, onRefresh, query = "", embedded = false, dock = false }: { items: ActivityItem[]; chatRelay: boolean; onRefresh: () => void; query?: string; embedded?: boolean; dock?: boolean }) {
   const router = useRouter();
   const [filter, setFilter] = useState<ActivityFilter>("all");
   const [baseline, setBaseline] = useState<Set<string> | null>(null);
@@ -110,6 +110,23 @@ export function ActivityStream({ items, chatRelay, onRefresh, query = "", embedd
       viewport.removeEventListener("scroll", apply);
     };
   }, []);
+
+  if (dock) {
+    return (
+      <ChatDock
+        open
+        plain
+        items={items}
+        chatRelay={chatRelay}
+        draft={draft}
+        sending={sending}
+        sendError={sendError}
+        onDraft={setDraft}
+        onOpen={setChatOpen}
+        onSend={() => void send()}
+      />
+    );
+  }
 
   return (
     <aside id={embedded ? undefined : "activity"} ref={asideRef} className={embedded ? "relative flex min-h-0 flex-col gap-1 overflow-auto" : `fixed z-40 flex flex-col gap-2 inset-x-0 bottom-0 overflow-hidden pt-2 ps-[max(0.5rem,env(safe-area-inset-left))] pe-[max(0.5rem,env(safe-area-inset-right))] pb-2 md:static md:z-0 md:mt-2 md:grid md:w-full md:grid-cols-2 md:gap-2 md:overflow-visible md:p-0 ${sheetOpen ? "max-md:max-h-[min(70vh,560px)]" : ""}`}>
@@ -227,6 +244,7 @@ export function ActivityStream({ items, chatRelay, onRefresh, query = "", embedd
 
 function ChatDock({
   open,
+  plain = false,
   items,
   chatRelay: _chatRelay,
   draft,
@@ -237,6 +255,7 @@ function ChatDock({
   onSend,
 }: {
   open: boolean;
+  plain?: boolean;
   items: ActivityItem[];
   chatRelay: boolean;
   draft: string;
@@ -253,7 +272,7 @@ function ChatDock({
     if (node) node.scrollTop = node.scrollHeight;
   }, [thread.length, items]);
 
-  if (!open) {
+  if (!open && !plain) {
     return (
       <button type="button" onClick={() => onOpen(true)} className="min-h-11 self-end rounded-full bg-[#f5d547] px-3 text-[13px] font-semibold text-[#1a1400] md:min-h-0 md:py-1.5" aria-expanded={false}>
         Paperboy
@@ -262,49 +281,51 @@ function ChatDock({
   }
 
   return (
-    <div className="surface flex min-h-0 flex-1 flex-col p-2.5 md:max-h-72">
-      <div className="mb-1.5 flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold tracking-[0.14em] text-[#f5d547] uppercase">Paperboy</h2>
-        <button type="button" onClick={() => onOpen(false)} className="min-h-11 rounded-full border border-[#2c2d33] px-3 text-sm text-[#9a9aa3] md:min-h-0 md:px-2 md:py-0.5" aria-expanded={true}>
-          Hide
-        </button>
+    <div className={plain ? "flex h-full min-h-0 flex-col" : "surface flex min-h-0 flex-1 flex-col p-2.5 md:max-h-72"}>
+      {!plain && (
+        <div className="mb-1.5 flex items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold tracking-[0.14em] text-[#f5d547] uppercase">Paperboy</h2>
+          <button type="button" onClick={() => onOpen(false)} className="min-h-11 rounded-full border border-[#2c2d33] px-3 text-sm text-[#9a9aa3] md:min-h-0 md:px-2 md:py-0.5" aria-expanded={true}>
+            Hide
+          </button>
+        </div>
+      )}
+      <div ref={scroller} className={plain ? "min-h-0 flex-1 space-y-1 overflow-y-auto text-[15px] leading-snug" : "min-h-0 flex-1 space-y-1.5 overflow-y-auto overscroll-contain pr-1 max-md:max-h-[calc(70vh-14rem)]"}>
+        {thread.map((item) => {
+          const mine = item.source === "you";
+          return (
+            <article key={item.id} className={plain ? `border border-[#16324a] px-2 py-1 ${mine ? "ml-auto w-fit max-w-[90%]" : ""}` : `rounded-xl border border-[#2c2d33] px-2.5 py-1.5 ${mine ? "ml-auto w-fit max-w-[90%]" : ""}`}>
+              <div className="flex items-baseline justify-between gap-2 text-[13px]">
+                <span className={plain ? "text-[#00f0ff] uppercase" : "tracking-[0.12em] text-[#f5d547] uppercase"}>{sourceLabel(item.source)}</span>
+                <time className={plain ? "text-[#9fd8ff]" : "text-[#9a9aa3]"} dateTime={new Date(item.ts).toISOString()}>
+                  {plain ? formatSofiaTime(item.ts).slice(0, 5) : formatSofiaWhen(item.ts)}
+                </time>
+              </div>
+              <p className={plain ? "text-[#f4fbff]" : "mt-1 text-sm whitespace-pre-wrap text-[#e4e4e7]"}>{item.body || item.title}</p>
+            </article>
+          );
+        })}
       </div>
-          <div ref={scroller} className="min-h-0 flex-1 space-y-1.5 overflow-y-auto overscroll-contain pr-1 max-md:max-h-[calc(70vh-14rem)]">
-            {thread.map((item) => {
-                const mine = item.source === "you";
-                return (
-                  <article key={item.id} className={`rounded-xl border border-[#2c2d33] px-2.5 py-1.5 ${mine ? "ml-auto w-fit max-w-[90%]" : ""}`}>
-                    <div className="flex items-baseline justify-between gap-2 text-sm">
-                      <span className="tracking-[0.12em] text-[#f5d547] uppercase">{sourceLabel(item.source)}</span>
-                      <time className="text-[#9a9aa3]" dateTime={new Date(item.ts).toISOString()}>
-                        {formatSofiaWhen(item.ts)}
-                      </time>
-                    </div>
-                    {item.body && <p className="mt-1 text-sm whitespace-pre-wrap text-[#e4e4e7]">{item.body}</p>}
-                  </article>
-                );
-              })}
-          </div>
-          <form
-            className="mt-3 flex gap-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              onSend();
-            }}
-          >
-            <input
-              value={draft}
-              onChange={(event) => onDraft(event.target.value)}
-              maxLength={2000}
-              placeholder="Message Paperboy"
-              aria-label="Message Paperboy"
-              className="h-11 min-w-0 flex-1 rounded-full border border-[#2c2d33] bg-[#070709] px-3 text-base text-[#f4f4f5] outline-none placeholder:text-[#9a9aa3] focus:border-[#f5d547] md:h-8 md:text-[13px]"
-            />
-            <Button type="submit" size="sm" className="min-h-11 px-4 md:min-h-0 md:px-3" disabled={sending || !draft.trim()}>
-              Send
-            </Button>
-          </form>
-          {sendError && <p className="mt-1.5 text-sm text-[#f5d547]">{sendError}</p>}
+      <form
+        className="mt-2 flex gap-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSend();
+        }}
+      >
+        <input
+          value={draft}
+          onChange={(event) => onDraft(event.target.value)}
+          maxLength={2000}
+          placeholder="Message Paperboy"
+          aria-label="Message Paperboy"
+          className={plain ? "h-11 min-w-0 flex-1 border border-[#00f0ff] bg-[#05060d] px-3 text-[15px] text-[#f4fbff] outline-none placeholder:text-[#8fb4c9]" : "h-11 min-w-0 flex-1 rounded-full border border-[#2c2d33] bg-[#070709] px-3 text-base text-[#f4f4f5] outline-none placeholder:text-[#9a9aa3] focus:border-[#f5d547] md:h-8 md:text-[13px]"}
+        />
+        <Button type="submit" size="sm" className="min-h-11 px-4" disabled={sending || !draft.trim()}>
+          Send
+        </Button>
+      </form>
+      {sendError && <p className="mt-1 text-[13px] text-[#ffcc00]">{sendError}</p>}
     </div>
   );
 }

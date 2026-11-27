@@ -2,6 +2,7 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import { planBotsPatch, resetBotsForTests } from "./bots";
+import { planEquityPatch, resetEquityForTests } from "./equity-store";
 import { finite } from "./format";
 import { acceptLevels, resetLevelsForTests } from "./levels";
 import { tradeTime } from "./pnl";
@@ -36,6 +37,7 @@ export function resetStoreForTests() {
   cache = null;
   resetLevelsForTests();
   resetBotsForTests();
+  resetEquityForTests();
 }
 
 function readJson(file: string): unknown {
@@ -325,10 +327,13 @@ export function applyIngest(body: unknown, now = Date.now()): { ok: true } | { o
   if (!input) return { ok: false, error: "Body must be a JSON object." };
   const bots = planBotsPatch(input);
   if (!bots.ok) return bots;
+  const equity = planEquityPatch(input, now);
+  if (!equity.ok) return equity;
   const hasEvent = input.source != null || input.type != null || input.title != null || input.trade != null;
   if (!hasEvent) {
-    if (!bots.present) return { ok: false, error: "Source must be paperboy, trading.exe, or you." };
-    bots.save();
+    if (!bots.present && !equity.present) return { ok: false, error: "Source must be paperboy, trading.exe, or you." };
+    if (bots.present) bots.save();
+    if (equity.present) equity.save();
     return { ok: true };
   }
   if (!isSource(input.source)) return { ok: false, error: "Source must be paperboy, trading.exe, or you." };
@@ -372,6 +377,7 @@ export function applyIngest(body: unknown, now = Date.now()): { ok: true } | { o
   const nextTrades = trades.sort((a, b) => tradeTime(b) - tradeTime(a) || a.id.localeCompare(b.id)).slice(0, TRADE_LIMIT);
   save({ items, trades: nextTrades });
   if (bots.present) bots.save();
+  if (equity.present) equity.save();
   return { ok: true };
 }
 

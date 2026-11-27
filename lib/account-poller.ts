@@ -1,4 +1,5 @@
 import { buildCharts } from "./candles";
+import { recordEquity } from "./equity-store";
 import { fetchKrakenAccount, notConnectedAccount } from "./kraken";
 import { fetchKrakenEarn, fetchKrakenOpenOrders, fetchKrakenSpot } from "./kraken-spot";
 import { ACCOUNT_POLL_MS } from "./poll";
@@ -75,6 +76,8 @@ async function refreshSnapshot(): Promise<DeskSnapshot> {
     ]);
     const charts = account.connected && account.positions.length > 0 ? await buildCharts(account.positions) : [];
     poll.cache = merge(poll.cache, { account, spot, earn, spotOrders, charts });
+    const equity = poll.cache.account.portfolioValue;
+    if (poll.cache.account.connected && equity != null) recordEquity(equity, poll.cache.account.updatedAt ?? Date.now());
     poll.ready = true;
     return poll.cache;
   })().finally(() => {
