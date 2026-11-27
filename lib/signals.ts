@@ -1,20 +1,30 @@
 import { lastSofia4h } from "./live-feed";
-import type { SignalRow, SignalStatus, SignalWatch } from "./types";
+import type { SignalMiss, SignalRow, SignalStatus, SignalWatch } from "./types";
 
 export type Ohlc = { t: number; h: number; l: number; c: number };
 
 const BLOCK_MS = 4 * 3_600_000;
+const DAY_MS = 86_400_000;
 
 export function nextSofia4h(now = Date.now()) {
   return lastSofia4h(now) + BLOCK_MS;
 }
 
 export function ema(values: number[], period: number) {
-  if (values.length < period) return null;
+  return emaSeries(values, period).at(-1) ?? null;
+}
+
+/** EMA values aligned to the last `values.length - period + 1` closes. */
+export function emaSeries(values: number[], period: number) {
+  if (values.length < period) return [];
   const k = 2 / (period + 1);
   let value = values.slice(0, period).reduce((sum, item) => sum + item, 0) / period;
-  for (const next of values.slice(period)) value = next * k + value * (1 - k);
-  return value;
+  const series = [value];
+  for (const next of values.slice(period)) {
+    value = next * k + value * (1 - k);
+    series.push(value);
+  }
+  return series;
 }
 
 export function adx14(candles: Ohlc[]) {
@@ -60,37 +70,89 @@ function clamp01(value: number) {
   return Math.min(1, Math.max(0, value));
 }
 
-export function scoreSignal(input: { close: number | null; ema20: number | null; ema50: number | null; adx: number | null; dailyEma: number | null; inPosition: boolean }): Omit<SignalRow, "coin" | "price" | "change24"> {
-  const { close, ema20, ema50, adx, dailyEma, inPosition } = input;
-  if (close == null || ema20 == null || ema50 == null || adx == null || dailyEma == null || close === 0 || ema50 === 0) {
-    return { trend: null, dailySide: null, adx, score: null, status: inPosition ? "in" : "no" };
-  }
-  const trend = ema20 === ema50 ? null : ema20 > ema50 ? "up" : "down";
-  const dailySide = trend == null ? null : trend === "up" ? close > dailyEma : close < dailyEma;
-  const adxHot = adx > 30;
-  const trendPart = trend == null ? clamp01(1 - Math.abs(ema20 - ema50) / ema50 / 0.01) : 1;
-  const adxPart = clamp01(adx / 30);
-  const sidePart = dailySide ? 1 : clamp01(1 - Math.abs(close - dailyEma) / close / 0.02);
-  const score = Math.round(((trendPart + adxPart + sidePart) / 3) * 100);
-  const ready = trend != null && adxHot && dailySide === true;
-  const status: SignalStatus = inPosition ? "in" : ready ? "ready" : score >= 67 ? "near" : "no";
-  return { trend, dailySide, adx, score, status };
+function candleMs(time: number) {
+  return time < 1e12 ? time * 1000 : time;
 }
 
-export function signalFromCandles(coin: string, fourHour: Ohlc[], daily: Ohlc[], inPosition: boolean): SignalRow {
+/** Drop the in-progress bar. Kraken candle time is the bar open. */
+export function closedCandles(candles: Ohlc[], intervalMs: number, now: number) {
+  if (candles.length === 0) return candles;
+  const last = candles[candles.length - 1];
+  return now < candleMs(last.t) + intervalMs ? candles.slice(0, -1) : candles;
+}
+
+function crossDirection(prev20: number | null, prev50: number | null, ema20: number, ema50: number): "up" | "down" | null {
+  if (prev20 == null || prev50 == null) return null;
+  if (prev20 <= prev50 && ema20 > ema50) return "up";
+  if (prev20 >= prev50 && ema20 < ema50) return "down";
+  return null;
+}
+
+export type ScoreInput = {
+  close: number | null;
+  ema20: number | null;
+  ema50: number | null;
+  prevEma20: number | null;
+  prevEma50: number | null;
+  adx: number | null;
+  dailyEma: number | null;
+  inPosition: boolean;
+};
+
+/**
+ * READY is a closed-bar entry: EMA20 crossed EMA50 on this bar, ADX(14) > 30, and price is on
+ * that side of the previous day's daily EMA50. A trend that is already in force is not a cross.
+ * NEAR requires the daily filter and names whichever of cross / ADX is still missing.
+ */
+export function scoreSignal(input: ScoreInput): Omit<SignalRow, "coin" | "price" | "change24" | "preview"> {
+  const { close, ema20, ema50, prevEma20, prevEma50, adx, dailyEma, inPosition } = input;
+  if (close == null || ema20 == null || ema50 == null || adx == null || dailyEma == null || close === 0 || ema50 === 0) {
+    return { trend: null, dailySide: null, adx, score: null, status: inPosition ? "in" : "no", missing: ["cross", "adx", "daily"] };
+  }
+  const trend = ema20 === ema50 ? null : ema20 > ema50 ? "up" : "down";
+  const crossed = crossDirection(prevEma20, prevEma50, ema20, ema50);
+  const dailySide = trend == null ? null : trend === "up" ? close > dailyEma : close < dailyEma;
+  const adxHot = adx > 30;
+  const missing: SignalMiss[] = [];
+  if (crossed == null) missing.push("cross");
+  if (!adxHot) missing.push("adx");
+  if (dailySide !== true) missing.push("daily");
+  const crossPart = crossed ? 1 : trend == null ? clamp01(1 - Math.abs(ema20 - ema50) / ema50 / 0.01) : 0.45;
+  const adxPart = clamp01(adx / 30);
+  const sidePart = dailySide ? 1 : clamp01(1 - Math.abs(close - dailyEma) / Math.abs(close) / 0.02);
+  const score = Math.round(((crossPart + adxPart + sidePart) / 3) * 100);
+  const ready = missing.length === 0;
+  const status: SignalStatus = inPosition ? "in" : ready ? "ready" : dailySide === true ? "near" : "no";
+  return { trend, dailySide, adx, score, status, missing: ready ? [] : missing };
+}
+
+function scoreCandles(fourHour: Ohlc[], daily: Ohlc[], inPosition: boolean) {
   const closes = fourHour.map((candle) => candle.c);
-  const close = closes[closes.length - 1] ?? null;
-  const prior = closes.length > 6 ? closes[closes.length - 7] : null;
-  const change24 = close != null && prior != null && prior !== 0 ? ((close - prior) / prior) * 100 : null;
-  const scored = scoreSignal({
-    close,
-    ema20: ema(closes, 20),
-    ema50: ema(closes, 50),
+  const fast = emaSeries(closes, 20);
+  const slow = emaSeries(closes, 50);
+  return scoreSignal({
+    close: closes[closes.length - 1] ?? null,
+    ema20: fast.at(-1) ?? null,
+    ema50: slow.at(-1) ?? null,
+    prevEma20: fast.length >= 2 ? (fast.at(-2) ?? null) : null,
+    prevEma50: slow.length >= 2 ? (slow.at(-2) ?? null) : null,
     adx: adx14(fourHour),
     dailyEma: ema(daily.map((candle) => candle.c), 50),
     inPosition,
   });
-  return { coin, price: close, change24, ...scored };
+}
+
+export function signalFromCandles(coin: string, fourHour: Ohlc[], daily: Ohlc[], inPosition: boolean, now = Date.now()): SignalRow {
+  const closed4 = closedCandles(fourHour, BLOCK_MS, now);
+  const closedDay = closedCandles(daily, DAY_MS, now);
+  const scored = scoreCandles(closed4, closedDay, inPosition);
+  const forming = fourHour.length > closed4.length ? scoreCandles(fourHour, closedDay, false) : null;
+  const preview = Boolean(forming && forming.status === "ready" && scored.status !== "ready");
+  const closes = fourHour.map((candle) => candle.c);
+  const close = closes[closes.length - 1] ?? null;
+  const prior = closes.length > 6 ? closes[closes.length - 7] : null;
+  const change24 = close != null && prior != null && prior !== 0 ? ((close - prior) / prior) * 100 : null;
+  return { coin, price: close, change24, preview, ...scored };
 }
 
 export function rankSignals(rows: SignalRow[]): SignalWatch["rows"] {

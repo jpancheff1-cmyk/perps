@@ -93,7 +93,7 @@ export function liveFeedLines(items: ActivityItem[]) {
   for (const item of sorted) {
     const line = eventLine(item);
     if (!line) continue;
-    lines.push(line);
+    lines.push(item.id.startsWith("paper-") ? `PAPER ${line}` : line);
     if (lines.length === 12) break;
   }
   return lines;

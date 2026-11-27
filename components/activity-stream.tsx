@@ -294,7 +294,7 @@ function ChatDock({
         {thread.map((item) => {
           const mine = item.source === "you";
           return (
-            <article key={item.id} className={plain ? `border border-[#16324a] px-2 py-1 ${mine ? "ml-auto w-fit max-w-[90%]" : ""}` : `rounded-xl border border-[#2c2d33] px-2.5 py-1.5 ${mine ? "ml-auto w-fit max-w-[90%]" : ""}`}>
+            <article key={item.id} className={plain ? `tape-in border border-[#16324a] px-2 py-1 ${mine ? "ml-auto w-fit max-w-[90%]" : ""}` : `rounded-xl border border-[#2c2d33] px-2.5 py-1.5 ${mine ? "ml-auto w-fit max-w-[90%]" : ""}`}>
               <div className="flex items-baseline justify-between gap-2 text-[13px]">
                 <span className={plain ? "text-[#00f0ff] uppercase" : "tracking-[0.12em] text-[#f5d547] uppercase"}>{sourceLabel(item.source)}</span>
                 <time className={plain ? "text-[#9fd8ff]" : "text-[#9a9aa3]"} dateTime={new Date(item.ts).toISOString()}>

@@ -16,6 +16,8 @@ import { PerformancePanel } from "@/components/performance-panel";
 import { OpenFuturesTrades } from "@/components/trades-panel";
 import { demoDesk } from "@/lib/demo-desk";
 import { idleFeedLine, liveFeedLines, marketLiqLines, positionLiqLines } from "@/lib/live-feed";
+import type { PaperSession } from "@/lib/paper";
+import { paperView } from "@/lib/paper-view";
 import { equityStats } from "@/lib/equity-math";
 import { formatPrice, formatUsd } from "@/lib/format";
 import { buildOpenFutures } from "@/lib/futures-book";
@@ -41,6 +43,8 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
   const [reduced, setReduced] = useState(false);
   const [phone, setPhone] = useState(false);
   const [chatCollapsed, setChatCollapsed] = useState(false);
+  const [paperOn, setPaperOn] = useState(false);
+  const [paper, setPaper] = useState<PaperSession | null>(null);
   const [demoOn, setDemoOn] = useState(false);
   const [bookOpen, setBookOpen] = useState(false);
 
@@ -61,6 +65,29 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
       setError(true);
     }
   }
+
+  useEffect(() => {
+    setPaperOn(new URLSearchParams(window.location.search).get("paper") === "1");
+  }, []);
+
+  useEffect(() => {
+    if (!paperOn) return;
+    let cancelled = false;
+    async function pull() {
+      try {
+        const response = await fetch("/api/paper", { cache: "no-store" });
+        if (!cancelled && response.ok) setPaper((await response.json()) as PaperSession);
+      } catch {
+        if (!cancelled) setPaper(null);
+      }
+    }
+    void pull();
+    const id = window.setInterval(() => void pull(), 3000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [paperOn]);
 
   useEffect(() => {
     if (!allowDemo) return;
@@ -142,7 +169,7 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
   }
 
   const [fixture] = useState(() => demoDesk());
-  const view = demoOn ? fixture : state;
+  const view = paperOn && paper && state ? paperView(state, paper) : demoOn ? fixture : state;
   const total = view ? connectedTotal(view) : null;
   const periods = view ? periodPnl(view.trades) : { day: null, week: null, month: null };
   const charts = view?.charts ?? [];
@@ -173,6 +200,7 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
       <header className="g-head fui-panel flex flex-wrap items-center gap-x-3 gap-y-1 px-2 py-1">
         <div className="min-w-0">
           <h1 className="text-[13px] font-bold tracking-[0.14em] text-[#00f0ff] uppercase">Mission Control</h1>
+          {paperOn && <span className="border border-[#ffcc00] px-1 text-[10px] font-bold text-[#ffcc00]">PAPER</span>}
         </div>
         <div className="flex flex-wrap gap-1 text-[11px] uppercase">
           <Stat label="BTC" value={btc} />
@@ -194,8 +222,33 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
             }
           />
           <button type="button" onClick={() => void lock()} className="h-7 border border-[#16324a] px-2 text-[11px] uppercase">Lock</button>
+          <button
+            type="button"
+            onClick={() => {
+              const url = new URL(window.location.href);
+              if (paperOn) url.searchParams.delete("paper");
+              else url.searchParams.set("paper", "1");
+              window.location.assign(url.toString());
+            }}
+            className="h-7 border border-[#ffcc00] px-2 text-[11px] font-bold text-[#ffcc00] uppercase"
+          >
+            {paperOn ? "Live" : "Paper"}
+          </button>
+          {paperOn && (
+            <button
+              type="button"
+              onClick={() =>
+                void fetch("/api/paper", { method: "POST" }).then(async (response) => {
+                  if (response.ok) setPaper((await response.json()) as PaperSession);
+                })
+              }
+              className="h-7 border border-[#16324a] px-2 text-[11px] uppercase"
+            >
+              Reset
+            </button>
+          )}
         </div>
-        <CoinRow rows={view?.signals.rows ?? []} open={new Set((view?.account.positions ?? []).filter((position) => position.size).map((position) => coinName(position.symbol)))} />
+        <CoinRow paper={paperOn} rows={view?.signals.rows ?? []} open={new Set((view?.account.positions ?? []).filter((position) => position.size).map((position) => coinName(position.symbol)))} />
       </header>
       <div className="g-feed flex min-h-11 items-center gap-3 overflow-hidden border border-[#ff5a7a] bg-[#3a0a14] px-3 text-[#ffe8ee]">
         <span className="shrink-0 text-[15px] font-bold text-[#ff8aa0]">● Live feed</span>
@@ -203,17 +256,19 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
       </div>
       <BotPanels bots={view?.bots ?? emptyBots()} />
       <section className="g-wallet fui-panel flex flex-col px-2 py-1">
-        <PanelHead title="Wallet" tag={view?.account.connected ? "LIVE" : "OFF"} tone={view?.account.connected ? "green" : "red"} />
-        <div className="text-[clamp(1.4rem,2.4vw,2.2rem)] leading-none font-bold text-[#39ff14]">
+        <PanelHead title="Wallet" tag={paperOn ? "PAPER" : view?.account.connected ? "LIVE" : "OFF"} tone={paperOn ? "yellow" : view?.account.connected ? "green" : "red"} />
+        <div className="text-[clamp(1.15rem,2vw,1.7rem)] leading-none font-bold text-[#39ff14]">
           <Digits value={total == null ? "—" : formatUsd(total)} />
         </div>
-        <dl className="mt-1 grid grid-cols-2 gap-x-2 text-[11px] uppercase">
-          <Fact label="Unrealized" value={view?.account.connected ? formatUsd(view.account.unrealizedPnl) : "—"} />
-          <Fact label="Margin" value={view?.account.connected ? formatUsd(view.account.availableMargin) : "—"} />
+        <dl className="mt-1 grid grid-cols-2 gap-x-3 gap-y-1 text-[12px] uppercase">
+          <Fact label="Portfolio" value={view?.account.connected ? formatUsd(view.account.portfolioValue) : "—"} />
+          <Fact label="Unrealized" value={view?.account.connected ? formatUsd(view.account.unrealizedPnl) : "—"} tone={toneOf(view?.account.unrealizedPnl)} />
+          <Fact label="Available" value={view?.account.connected ? formatUsd(view.account.availableMargin) : "—"} />
+          <Fact label="Margin used" value={marginUsed(view)} />
           <Fact label="Spot" value={view?.spot.connected && view.spot.totalUsd != null ? formatUsd(view.spot.totalUsd) : "—"} />
           <Fact label="Earn" value={view?.earn.connected && view.earn.totalUsd != null ? formatUsd(view.earn.totalUsd) : "—"} />
           <Fact label="Open" value={view ? String(openCount) : "—"} />
-          <Fact label="Today" value={periods.day == null ? "—" : formatUsd(periods.day)} />
+          <Fact label="Today" value={periods.day == null ? "—" : formatUsd(periods.day)} tone={toneOf(periods.day)} />
         </dl>
         <div className="mt-1 flex gap-1" role="group" aria-label="Realized window">
           <Period id="day" label="1D" value={periods.day} active={period === "day"} onPick={setPeriod} />
@@ -274,7 +329,7 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
         </div>
       </section>
       <section className="g-trades min-h-0 overflow-auto">
-        {view ? <OpenFuturesTrades account={view.account} settled={view.trades.filter((trade) => trade.status === "closed").slice(0, 4)} query={query} /> : <Loading label="Loading trades…" />}
+        {view ? <OpenFuturesTrades account={view.account} settled={view.trades.filter((trade) => trade.status === "closed").slice(0, 4)} query={query} paper={paperOn} /> : <Loading label="Loading trades…" />}
       </section>
       <section className="g-quant fui-panel flex min-h-0 flex-col px-2 py-1">
         <PanelHead title="Quant metrics" />
@@ -284,7 +339,7 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
         </div>
       </section>
       <section className="g-state fui-panel flex min-h-0 flex-col px-2 py-1">
-        <PanelHead title="Equity & drawdown" />
+        <PanelHead title="Equity & drawdown" tag={paperOn ? "PAPER" : undefined} tone={paperOn ? "yellow" : "cyan"} />
         <dl className="grid grid-cols-4 gap-x-2 text-[10px] uppercase">
           <Fact label="Equity" value={equity.current == null ? "—" : formatUsd(equity.current)} />
           <Fact label="Peak" value={equity.peak == null ? "—" : formatUsd(equity.peak)} />
@@ -295,7 +350,7 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
       </section>
       <section id="activity" className="g-trace fui-panel flex min-h-0 flex-col px-2 py-1">
         <PanelHead title="Signal watch" />
-        <SignalWatchPanel watch={view?.signals ?? null} now={view?.serverTime ?? Date.now()} />
+        <SignalWatchPanel watch={view?.signals ?? null} now={view?.serverTime ?? Date.now()} paper={paperOn} />
       </section>
       <section id="chat" className="g-chat fui-panel flex min-h-[168px] flex-col px-2 py-1 max-[1179px]:min-h-0">
         <div className="flex items-center justify-between gap-2">
@@ -311,13 +366,13 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
         )}
       </section>
       <section id="balances" className="g-phase fui-panel flex min-h-0 flex-col px-2 py-1">
-        <PanelHead title="Open risk" tag={risk.totalPct == null ? "—" : `${risk.totalPct.toFixed(1)}%`} tone="yellow" />
+        <PanelHead title="Open risk" tag={paperOn ? "PAPER" : risk.totalPct == null ? "—" : `${risk.totalPct.toFixed(1)}%`} tone="yellow" />
         <p className="text-[10px] uppercase text-[#9fd8ff]">{filledToday == null ? "—" : `${filledToday}/10`}</p>
         <div className="min-h-0 flex-1 space-y-0.5 overflow-auto text-[10px] uppercase">
           {risk.rows.map((row) => (
             <div key={row.id} className="grid grid-cols-[52px_1fr] items-center gap-1">
               <span className={row.side === "short" ? "text-[#ff2a6a]" : "text-[#39ff14]"}>
-                {row.coin} {row.side === "short" ? "S" : "L"}
+                {paperOn ? "PAPER " : ""}{row.coin} {row.side === "short" ? "S" : "L"}
               </span>
               <span className="truncate text-[#d7f6ff]">
                 {row.stopPct == null ? "—" : `${row.stopPct.toFixed(1)}%`}
@@ -476,13 +531,24 @@ function bookImbalance(state: DeskPayload | null) {
   return `${(((long - short) / total) * 100).toFixed(1)}%`;
 }
 
-function Fact({ label, value }: { label: string; value: string }) {
+function Fact({ label, value, tone }: { label: string; value: string; tone?: "up" | "down" }) {
+  const color = tone === "up" ? "text-[#39ff14]" : tone === "down" ? "text-[#ff5a7a]" : "text-[#f4fbff]";
   return (
     <div className="min-w-0">
-      <dt className="text-[#5f7d90]">{label}</dt>
-      <dd className="truncate text-[#e7f6ff]">{value}</dd>
+      <dt className="text-[11px] leading-tight text-[#9fd8ff]">{label}</dt>
+      <dd className={`break-words text-[14px] font-semibold leading-tight tabular-nums ${color}`}>{value}</dd>
     </div>
   );
+}
+
+function toneOf(value: number | null | undefined): "up" | "down" | undefined {
+  if (value == null || value === 0) return undefined;
+  return value > 0 ? "up" : "down";
+}
+
+function marginUsed(state: DeskPayload | null) {
+  if (!state?.account.connected || state.account.portfolioValue == null || state.account.availableMargin == null) return "—";
+  return formatUsd(state.account.portfolioValue - state.account.availableMargin);
 }
 
 function CandleStrip({ candles }: { candles: MarketCandle[] }) {

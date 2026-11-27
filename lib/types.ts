@@ -207,6 +207,7 @@ export type BotsView = { xstocks: XStocksView; dca: DcaView };
 export type EquityPoint = { ts: number; equity: number };
 
 export type SignalStatus = "ready" | "near" | "no" | "in";
+export type SignalMiss = "cross" | "adx" | "daily";
 
 export type SignalRow = {
   coin: string;
@@ -217,6 +218,9 @@ export type SignalRow = {
   adx: number | null;
   score: number | null;
   status: SignalStatus;
+  missing: SignalMiss[];
+  /** Forming 4h bar would be READY if it closed like this. Closed bars still decide status. */
+  preview: boolean;
 };
 
 export type SignalWatch = { nextClose: number; rows: SignalRow[] };

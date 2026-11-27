@@ -10,7 +10,7 @@ const TONE: Record<SignalRow["status"], string> = {
   in: "text-[#00f0ff]",
 };
 
-export function SignalWatchPanel({ watch, now }: { watch: SignalWatch | null; now: number }) {
+export function SignalWatchPanel({ watch, now, paper = false }: { watch: SignalWatch | null; now: number; paper?: boolean }) {
   const [tick, setTick] = useState(now);
   const [sort, setSort] = useState<"score" | "coin" | "adx">("score");
   useEffect(() => {
@@ -30,7 +30,7 @@ export function SignalWatchPanel({ watch, now }: { watch: SignalWatch | null; no
         <button type="button" onClick={() => setSort("coin")} className="px-2 text-[11px] uppercase text-[#9fd8ff]">Coin</button>
         <button type="button" onClick={() => setSort("adx")} className="px-2 text-[11px] uppercase text-[#9fd8ff]">Adx</button>
       </div>
-      <div className="signal-head grid grid-cols-[52px_36px_28px_44px_36px_1fr] gap-1 text-[10px] uppercase text-[#5f7d90]">
+      <div className="signal-head grid grid-cols-[52px_36px_28px_52px_36px_1fr] gap-1 text-[10px] uppercase text-[#5f7d90]">
         <button type="button" onClick={() => setSort("coin")} className="text-left">Coin</button>
         <span>4h</span>
         <span>D50</span>
@@ -40,18 +40,35 @@ export function SignalWatchPanel({ watch, now }: { watch: SignalWatch | null; no
       </div>
       <div className="min-h-16 flex-1 overflow-auto">
         {rows.map((row) => (
-          <div key={row.coin} className="signal-row grid grid-cols-[52px_36px_28px_44px_36px_1fr] gap-1 py-0.5 text-[11px] uppercase">
+          <div key={row.coin} className="signal-row grid grid-cols-[52px_36px_28px_52px_36px_1fr] gap-1 py-0.5 text-[11px] uppercase">
             <span className="text-[#e7f6ff]">{row.coin}</span>
             <span className={row.trend === "up" ? "text-[#39ff14]" : row.trend === "down" ? "text-[#ff2a6a]" : "text-[#8fb4c9]"}>{row.trend === "up" ? "Up" : row.trend === "down" ? "Down" : "—"}</span>
             <span className={row.dailySide ? "text-[#39ff14]" : "text-[#8fb4c9]"}>{row.dailySide == null ? "—" : row.dailySide ? "Yes" : "No"}</span>
-            <span className={row.adx != null && row.adx > 30 ? "text-[#ffcc00]" : "text-[#d7f6ff]"}>{row.adx == null ? "—" : row.adx.toFixed(0)}</span>
+            <span className={row.adx != null && row.adx > 30 ? "text-[#ffcc00]" : "text-[#d7f6ff]"}>{row.adx == null ? "—" : formatAdx(row.adx)}</span>
             <span className="text-[#e7f6ff] tabular-nums">{row.score == null ? "—" : row.score}</span>
-            <span className={TONE[row.status]}>{row.status === "in" ? "In position" : row.status === "ready" ? "Ready" : row.status === "near" ? "Near" : "No"}</span>
+            <span className={`${row.preview ? TONE.ready : TONE[row.status]} normal-case`}>{statusLabel(row, paper)}</span>
           </div>
         ))}
       </div>
     </div>
   );
+}
+
+const MISS = { cross: "cross", adx: "ADX", daily: "daily" } as const;
+
+function formatAdx(value: number) {
+  const rounded = value.toFixed(1);
+  if (value <= 30 && Number(rounded) >= 30) return value.toFixed(2);
+  return rounded;
+}
+
+function statusLabel(row: SignalRow, paper: boolean) {
+  if (row.status === "in") return paper ? "In position · PAPER" : "In position";
+  if (row.preview) return "Ready (if it holds at close)";
+  const miss = row.missing.map((item) => MISS[item]).join(", ");
+  if (row.status === "ready") return "Ready";
+  if (row.status === "near") return miss ? `Near · ${miss}` : "Near";
+  return miss ? `No · ${miss}` : "No";
 }
 
 function clock(at: number, now: number) {
