@@ -204,6 +204,8 @@ export type DcaView = {
 
 export type BotsView = { xstocks: XStocksView; dca: DcaView };
 
+export type EquityPoint = { ts: number; equity: number };
+
 export type DeskPayload = {
   account: AccountPayload;
   spot: SpotPayload;
@@ -213,6 +215,7 @@ export type DeskPayload = {
   items: ActivityItem[];
   trades: Trade[];
   bots: BotsView;
+  equity: EquityPoint[];
   serverTime: number;
   chatRelay: boolean;
   forceStopArmed: boolean;

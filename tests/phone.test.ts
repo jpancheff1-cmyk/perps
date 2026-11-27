@@ -21,7 +21,17 @@ test("phone layout keeps the viewport, a closable dock, and a lighter background
   assert.match(desk, /safe-area-inset-bottom/);
   assert.match(desk, /get\("demo"\) === "1"/);
   assert.equal(desk.includes(">DEMO<"), false);
+  assert.equal(desk.includes("pspspsps"), false);
+  assert.equal(desk.includes(">PS<"), false);
+  assert.match(desk, /Mission Control/);
+  assert.equal(desk.includes("State-space"), false);
+  assert.equal(desk.includes("phase portrait"), false);
   assert.equal(desk.includes("Directional · hedge"), false);
+  assert.equal(desk.includes('tag="EDGE"'), false);
+  assert.equal(desk.includes('tag="FAIR-P"'), false);
+  const bots = read("components/bots-strip.tsx");
+  assert.equal(bots.includes('label="10x"'), false);
+  assert.match(bots, /Paused/);
 
   const strip = read("components/kraken-strip.tsx");
   assert.equal(/read-only/i.test(strip), false);

@@ -91,11 +91,14 @@ export function Ecg({ points }: { points: PnlPoint[] }) {
 }
 
 export function Ticker({ items, reduced, bare = false }: { items: string[]; reduced: boolean; bare?: boolean }) {
-  const text = items.join("   ·   ");
-  const moving = items.length > 0 && !reduced;
+  const text = items.join("     ·     ");
+  const moving = items.length > 1 && !reduced && text.length > 0;
+  const face = bare
+    ? "flex min-h-11 items-center overflow-hidden text-[15px] font-semibold leading-normal tracking-wide text-[#ffe8ee] uppercase"
+    : "flex min-h-11 items-center overflow-hidden border-t border-[#16324a] bg-[#071018] text-[15px] font-semibold leading-normal tracking-wide text-[#f4fbff] uppercase";
   return (
-    <div className={bare ? "overflow-hidden text-[11px] tracking-wide uppercase" : "overflow-hidden border-t border-[#16324a] bg-[#05060d] text-[11px] tracking-wide text-[#9fdfff] uppercase"}>
-      <div className={moving ? "ticker-track" : "px-2 py-0.5"}>{moving ? `${text}    ${text}` : text}</div>
+    <div className={face}>
+      <div className={moving ? "ticker-track" : "px-3 py-2"}>{moving ? `${text}     ${text}` : text}</div>
     </div>
   );
 }
