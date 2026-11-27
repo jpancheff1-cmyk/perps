@@ -177,6 +177,8 @@ export function demoDesk(now = Date.now()): DeskPayload {
     marketLiqs: [
       { symbol: "PF_XBTUSD", side: "sell", size: 0.42, price: 61240, time: now - 75_000 },
     ],
+    quotes: [],
+    quotesAt: null,
     equity: Array.from({ length: 36 }, (_, index) => {
       const dip = index > 20 && index < 28 ? (index - 20) * 800 : 0;
       return { ts: now - (36 - index) * 3_600_000, equity: 270000 + index * 420 - dip };

@@ -6,9 +6,10 @@ export const globeLink = { x: 0, y: 0, ok: false };
 
 export type GlobeNode = { symbol: string };
 
+/** Circle diameter is 472. Capsule A is 22% by 10%, capsule B is 23% by 7%, one thickness apart in the upper right. */
 const EYES = [
-  { cx: 280, cy: 180, length: 115, thick: 48 },
-  { cx: 388, cy: 128, length: 120, thick: 34 },
+  { cx: 270, cy: 206, length: 104, thick: 47 },
+  { cx: 342, cy: 156, length: 109, thick: 33 },
 ] as const;
 
 export function WireGlobe({ nodes, active, reduced, spit = 0 }: { nodes: GlobeNode[]; active: string | null; reduced: boolean; spit?: number }) {
@@ -86,12 +87,12 @@ export function WireGlobe({ nodes, active, reduced, spit = 0 }: { nodes: GlobeNo
       </div>
       <div className={`absolute left-1/2 top-1/2 ${reduced ? "-translate-x-1/2 -translate-y-1/2" : "avatar-bob"}`}>
         <div className={reduced ? "" : reacting ? "avatar-spit" : "avatar-breathe"}>
-          <svg ref={orb} data-avatar-orb viewBox="0 0 512 512" className="h-[86px] w-[86px]" role="img" aria-label="Avatar">
-            <circle cx="256" cy="256" r="236" fill="#000" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
+          <svg ref={orb} data-avatar-orb viewBox="20 20 472 472" className="h-[84px] w-[84px]" role="img" aria-label="Avatar">
+            <circle cx="256" cy="256" r="236" fill="#fff" />
             <g ref={eyes}>
               {EYES.map((eye) => (
                 <g key={`${eye.cx}-${eye.cy}`} transform={`translate(${eye.cx} ${eye.cy}) rotate(55)`}>
-                  <rect x={-eye.length / 2} y={-eye.thick / 2} width={eye.length} height={eye.thick} rx={eye.thick / 2} fill="#fff" transform={`scale(1 ${blink})`} />
+                  <rect x={-eye.length / 2} y={-eye.thick / 2} width={eye.length} height={eye.thick} rx={eye.thick / 2} fill="#000" transform={`scale(1 ${blink})`} />
                 </g>
               ))}
             </g>

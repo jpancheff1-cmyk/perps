@@ -92,7 +92,7 @@ export function Ecg({ points }: { points: PnlPoint[] }) {
 
 export function Ticker({ items, reduced, bare = false }: { items: string[]; reduced: boolean; bare?: boolean }) {
   const text = items.join("     ·     ");
-  const moving = items.length > 1 && !reduced && text.length > 0;
+  const moving = items.length > 0 && !reduced && text.length > 0;
   const face = bare
     ? "flex min-h-11 items-center overflow-hidden text-[15px] font-semibold leading-normal tracking-wide text-[#ffe8ee] uppercase"
     : "flex min-h-11 items-center overflow-hidden border-t border-[#16324a] bg-[#071018] text-[15px] font-semibold leading-normal tracking-wide text-[#f4fbff] uppercase";

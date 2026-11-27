@@ -8,7 +8,7 @@ import { NextRequest } from "next/server";
 import { POST as postChat } from "../app/api/chat/route.ts";
 import { applyIngest, readFeed, resetStoreForTests } from "../lib/activity-store.ts";
 import { botsView } from "../lib/bots.ts";
-import { equityStats } from "../lib/equity-math.ts";
+import { equityPlot, equityStats } from "../lib/equity-math.ts";
 import { readEquity, recordEquity, resetEquityForTests } from "../lib/equity-store.ts";
 import { idleFeedLine, lastSofia4h, liquidationFeedLines, liveFeedLines, positionLiqLines } from "../lib/live-feed.ts";
 import { parseHistory } from "../lib/market-liqs.ts";
@@ -471,6 +471,25 @@ test("live feed uses trade fields and leaves chat out", () => {
   assert.equal(lines.some((line) => line.includes("4h close · 0 signals")), true);
   assert.equal(lines.some((line) => line.includes("scan · feed down")), true);
   assert.equal(liveFeedLines([]).length, 0);
+});
+
+test("equity plot keeps one clean line and the latest value", () => {
+  const raw = Array.from({ length: 180 }, (_, index) => ({
+    ts: 1_000 + index * 1_000,
+    equity: 3250 + Math.sin(index) * 8 + index * 0.05,
+  }));
+  const line = equityPlot(raw);
+  assert.equal(line.length, 24);
+  const rawSpan = Math.max(...raw.map((point) => point.equity)) - Math.min(...raw.map((point) => point.equity));
+  const lineSpan = Math.max(...line.map((point) => point.equity)) - Math.min(...line.map((point) => point.equity));
+  assert.ok(lineSpan < rawSpan * 0.55, `line span ${lineSpan} is still the raw wobble ${rawSpan}`);
+  assert.ok((line.at(-1)?.equity ?? 0) > line[0].equity);
+  const steps = [
+    { ts: 1, equity: 100 },
+    { ts: 2, equity: 110 },
+    { ts: 3, equity: 90 },
+  ];
+  assert.deepEqual(equityPlot(steps), steps);
 });
 
 test("equity snapshots keep peak, drawdown, and today's change", () => {

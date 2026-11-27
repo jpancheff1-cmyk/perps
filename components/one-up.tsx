@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import type { ActivityItem, Trade } from "@/lib/types";
 
@@ -53,14 +52,6 @@ export function OneUp({ items, trades }: { items: ActivityItem[]; trades: Trade[
       <button type="button" onClick={toggleMute} className="min-h-11 rounded-full border border-[#2c2d33] px-2.5 text-[12px] text-[#c6c6cc] md:min-h-0 md:py-1">
         {muted ? "Sound off" : "Sound on"}
       </button>
-      {pop > 0 && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-30 flex justify-center md:bottom-16">
-          <div key={pop} className="oneup flex flex-col items-center">
-            <Image src="/paperboy.png" alt="" width={128} height={128} className="h-24 w-24" />
-            <div className="text-5xl font-black tracking-wide text-[#f5d547]">1UP</div>
-          </div>
-        </div>
-      )}
     </>
   );
 }

@@ -56,24 +56,26 @@ body {
     display: grid;
     height: 100vh;
     overflow: hidden;
-    grid-template-columns: 0.85fr 1.35fr 1.2fr 0.95fr;
-    grid-template-rows: auto auto auto minmax(180px, 1.45fr) minmax(160px, 1.3fr) minmax(132px, 0.42fr) minmax(112px, 0.62fr) minmax(96px, 0.4fr);
+    grid-template-columns: 0.96fr 1.2fr 1.15fr 1.1fr;
+    grid-template-rows: auto auto auto minmax(240px, 1.05fr) minmax(96px, 0.22fr) minmax(150px, 0.7fr) minmax(180px, 0.62fr);
     gap: 4px;
   }
-  .g-head { grid-area: 1 / 1 / 2 / 5; min-height: 96px; }
-  .g-feed { grid-area: 2 / 1 / 3 / 5; min-height: 40px; }
-  .g-x { grid-area: 3 / 1 / 4 / 3; min-height: 48px; }
-  .g-dca { grid-area: 3 / 3 / 4 / 5; min-height: 48px; }
-  .g-wallet { grid-area: 4 / 1 / 6 / 2; overflow: auto; }
-  .g-trace { grid-area: 4 / 2 / 5 / 5; }
-  .g-state { grid-area: 5 / 2 / 6 / 5; }
-  .g-shell { grid-area: 6 / 1 / 7 / 3; min-height: 132px; }
-  .g-trades { grid-area: 6 / 3 / 7 / 5; }
-  .g-ask { grid-area: 7 / 1 / 8 / 3; }
-  .g-pay { grid-area: 7 / 3 / 8 / 4; }
-  .g-phase { grid-area: 7 / 4 / 8 / 5; }
-  .g-chat { grid-area: 8 / 1 / 9 / 5; }
+  .g-head { grid-area: 1 / 1 / 2 / 5; min-height: 92px; }
+  .g-feed { grid-area: 2 / 1 / 3 / 5; min-height: 36px; }
+  .g-x { grid-area: 3 / 1 / 4 / 3; min-height: 44px; }
+  .g-dca { grid-area: 3 / 3 / 4 / 5; min-height: 44px; }
+  .g-wallet { grid-area: 4 / 1 / 5 / 2; overflow: auto; }
+  .g-trace { grid-area: 4 / 2 / 5 / 3; }
+  .g-state { grid-area: 4 / 3 / 5 / 5; }
+  .g-shell { grid-area: 5 / 1 / 6 / 2; min-height: 96px; }
+  .g-trades { grid-area: 5 / 2 / 7 / 5; }
+  .g-phase { grid-area: 6 / 1 / 7 / 2; }
+  .g-chat { grid-area: 7 / 1 / 8 / 5; }
+  .g-ask, .g-pay { display: none; }
+  .g-trades article { padding: 10px 12px; font-size: 14px; }
+  .g-trades h2, .g-trades h3 { font-size: 15px; }
   .g-osc, .g-heat, .g-quant { display: none; }
+  .signal-row { line-height: 1.15; padding-top: 2px; padding-bottom: 2px; }
 }
 
 .fui-panel h2 {
@@ -108,7 +110,7 @@ body {
   white-space: nowrap;
   padding: 8px 0;
   line-height: 1.4;
-  animation: ticker 480s linear infinite;
+  animation: ticker 80s linear infinite;
 }
 
 @media (hover: hover) {

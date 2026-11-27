@@ -11,9 +11,9 @@ export function OpenFuturesTrades({ account, query = "", settled = [], paper = f
   const rows = book.rows.filter((row) => !needle || `${row.symbol} ${row.side}`.toLowerCase().includes(needle));
   const closed = settled.filter((trade) => !needle || `${trade.coin} ${trade.side}`.toLowerCase().includes(needle));
   return (
-    <section className="fui-panel flex h-full min-h-0 flex-col p-2 text-[11px] text-[#d7eef8]">
-      <div className="mb-1 flex items-center justify-between gap-2">
-        <h2 className="text-[11px] tracking-[0.12em] text-[#9fd8ff] uppercase">Live trades</h2>
+    <section className="fui-panel flex h-full min-h-0 flex-col p-3 text-[13px] text-[#d7eef8]">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h2 className="text-[15px] tracking-[0.14em] text-[#9fd8ff] uppercase">Live trades</h2>
         <span className={`text-[10px] font-bold uppercase ${paper ? "text-[#ffcc00]" : account.connected ? "text-[#39ff14]" : "text-[#ff5a7a]"}`}>{paper ? "PAPER" : account.connected ? "LIVE" : "OFF"}</span>
       </div>
       {account.connected && (rows.length > 0 || closed.length > 0) && (
