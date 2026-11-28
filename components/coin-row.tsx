@@ -8,7 +8,7 @@ export function CoinRow({ rows, open, paper = false, quotes = [], updatedAt = nu
   const byQuote = new Map(quotes.map((quote) => [quote.coin, quote]));
   return (
     <div className="flex w-full min-w-0 items-end gap-2">
-      <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto overscroll-x-contain pb-1">
+      <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto overscroll-x-contain px-0.5 py-0.5">
         {UNIVERSE.map((coin) => {
           const quote = byQuote.get(coin);
           const row = byCoin.get(coin);
@@ -16,8 +16,8 @@ export function CoinRow({ rows, open, paper = false, quotes = [], updatedAt = nu
           const change = quote?.change24 ?? row?.change24 ?? null;
           const held = open.has(coin);
           return (
-            <div key={coin} title={paper && held ? `PAPER ${coin}` : coin} className={`flex w-14 shrink-0 flex-col items-center gap-0.5 rounded px-1 py-0.5 ${held ? (paper ? "ring-1 ring-[#ffcc00] shadow-[0_0_12px_#ffcc00]" : "ring-1 ring-[#39ff14]") : ""}`}>
-              <img src={`/coins/${coin.toLowerCase()}.svg`} alt="" width={22} height={22} className="h-[22px] w-[22px]" />
+            <div key={coin} title={paper && held ? `PAPER ${coin}` : coin} className={`flex w-14 shrink-0 flex-col items-center gap-0.5 rounded px-1 ${held ? (paper ? "ring-1 ring-[#ffcc00] shadow-[0_0_12px_#ffcc00]" : "ring-1 ring-[#39ff14]") : ""}`}>
+              <img src={`/coins/${coin.toLowerCase()}.svg`} alt="" width={20} height={20} className="h-5 w-5" />
               {paper && held && <span className="text-[8px] font-bold text-[#ffcc00]">PAPER</span>}
               <span className="w-full truncate text-center text-[10px] text-[#e7f6ff] tabular-nums">{price == null ? "—" : formatPrice(price)}</span>
               <span className={`text-[10px] tabular-nums ${change == null ? "text-[#8fb4c9]" : change >= 0 ? "text-[#39ff14]" : "text-[#ff2a6a]"}`}>
@@ -27,7 +27,7 @@ export function CoinRow({ rows, open, paper = false, quotes = [], updatedAt = nu
           );
         })}
       </div>
-      <span className="shrink-0 pb-1 text-[10px] uppercase text-[#9fd8ff]">{updatedAt == null ? "last updated —" : `last updated ${formatSofiaTime(updatedAt).slice(0, 5)}`}</span>
+      <span className="shrink-0 pb-0.5 text-[10px] uppercase text-[#9fd8ff]">{updatedAt == null ? "last updated —" : `last updated ${formatSofiaTime(updatedAt).slice(0, 5)}`}</span>
     </div>
   );
 }

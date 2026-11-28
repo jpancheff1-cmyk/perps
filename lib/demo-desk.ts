@@ -1,4 +1,4 @@
-import { nextSofia4h, rankSignals, signalFromCandles, type Ohlc } from "./signals";
+import { alignToBtc, nextSofia4h, rankSignals, signalFromCandles, type Ohlc } from "./signals";
 import type { AccountPosition, BotsView, DeskPayload, MarketCandle, PositionChart, Trade } from "./types";
 import { UNIVERSE } from "./universe";
 
@@ -202,14 +202,15 @@ function ramp(count: number, start: number, drift: number, span: number, now: nu
 }
 
 function demoSignals(now: number) {
+  const rows = UNIVERSE.map((coin, index) => {
+    const drift = index % 4 === 0 ? -0.35 : 0.55;
+    return signalFromCandles(coin, ramp(90, 20 + index, drift, 4 * 3_600_000, now), ramp(70, 15 + index, drift * 3, 86_400_000, now), index === 2);
+  });
+  const bias = rows.find((row) => row.coin === "BTC")?.trend ?? null;
   return {
     nextClose: nextSofia4h(now),
-    rows: rankSignals(
-      UNIVERSE.map((coin, index) => {
-        const drift = index % 4 === 0 ? -0.35 : 0.55;
-        return signalFromCandles(coin, ramp(90, 20 + index, drift, 4 * 3_600_000, now), ramp(70, 15 + index, drift * 3, 86_400_000, now), index === 2);
-      }),
-    ),
+    updatedAt: now,
+    rows: rankSignals(rows.map((row) => alignToBtc(row, bias))),
   };
 }
 

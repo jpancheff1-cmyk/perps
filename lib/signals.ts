@@ -142,17 +142,63 @@ function scoreCandles(fourHour: Ohlc[], daily: Ohlc[], inPosition: boolean) {
   });
 }
 
+const MIN_HISTORY = 50;
+
+function change24(candles: Ohlc[]) {
+  const closes = candles.map((candle) => candle.c);
+  const close = closes[closes.length - 1] ?? null;
+  const prior = closes.length > 6 ? closes[closes.length - 7] : null;
+  const change = close != null && prior != null && prior !== 0 ? ((close - prior) / prior) * 100 : null;
+  return { close, change };
+}
+
+/** Closed 4h EMA20 versus EMA50. Null when BTC itself does not have a closed trend. */
+export function btcTrend(fourHour: Ohlc[], now = Date.now()): "up" | "down" | null {
+  const closed = closedCandles(fourHour, BLOCK_MS, now);
+  if (closed.length < MIN_HISTORY) return null;
+  const closes = closed.map((candle) => candle.c);
+  const fast = emaSeries(closes, 20).at(-1) ?? null;
+  const slow = emaSeries(closes, 50).at(-1) ?? null;
+  if (fast == null || slow == null || fast === slow) return null;
+  return fast > slow ? "up" : "down";
+}
+
+/** Alt longs need BTC EMA20 above EMA50. Alt shorts need the opposite. BTC is left alone. */
+export function alignToBtc(row: SignalRow, bias: "up" | "down" | null): SignalRow {
+  if (row.coin === "BTC") return row;
+  const tradable = row.status === "ready" || row.status === "near" || row.preview;
+  if (!tradable) return row;
+  if (row.trend != null && bias === row.trend) return row;
+  return {
+    ...row,
+    status: row.status === "ready" || row.status === "near" ? "no" : row.status,
+    missing: row.status === "ready" || row.status === "near" ? ["btc"] : row.missing,
+    preview: false,
+  };
+}
+
 export function signalFromCandles(coin: string, fourHour: Ohlc[], daily: Ohlc[], inPosition: boolean, now = Date.now()): SignalRow {
   const closed4 = closedCandles(fourHour, BLOCK_MS, now);
   const closedDay = closedCandles(daily, DAY_MS, now);
+  const { close, change } = change24(fourHour);
+  if (closed4.length < MIN_HISTORY || closedDay.length < MIN_HISTORY) {
+    return {
+      coin,
+      price: close,
+      change24: change,
+      trend: null,
+      dailySide: null,
+      adx: null,
+      score: null,
+      status: "no",
+      missing: ["history"],
+      preview: false,
+    };
+  }
   const scored = scoreCandles(closed4, closedDay, inPosition);
   const forming = fourHour.length > closed4.length ? scoreCandles(fourHour, closedDay, false) : null;
   const preview = Boolean(forming && forming.status === "ready" && scored.status !== "ready");
-  const closes = fourHour.map((candle) => candle.c);
-  const close = closes[closes.length - 1] ?? null;
-  const prior = closes.length > 6 ? closes[closes.length - 7] : null;
-  const change24 = close != null && prior != null && prior !== 0 ? ((close - prior) / prior) * 100 : null;
-  return { coin, price: close, change24, preview, ...scored };
+  return { coin, price: close, change24: change, preview, ...scored };
 }
 
 export function rankSignals(rows: SignalRow[]): SignalWatch["rows"] {
