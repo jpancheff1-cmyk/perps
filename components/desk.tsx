@@ -40,7 +40,6 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
   const [clock, setClock] = useState("");
   const [performanceOpen, setPerformanceOpen] = useState(false);
   const query = "";
-  const [period, setPeriod] = useState<PeriodId>("day");
   const [reduced, setReduced] = useState(false);
   const [phone, setPhone] = useState(false);
   const [shell, setShell] = useState(false);
@@ -205,7 +204,7 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
   const view = paperOn && paper && state ? paperView(state, paper) : demoOn ? fixture : state;
   const margin = view?.account.connected ? marginBreakdown(view.account) : null;
   const total = view ? connectedTotal(view) : null;
-  const periods = view ? periodPnl(view.trades) : { day: null, week: null, month: null };
+  const dayPnl = view ? periodPnl(view.trades) : null;
   const charts = view?.charts ?? [];
   const nodes = globeNodes(charts, view);
   const focus = nodes[0]?.symbol ?? null;
@@ -233,7 +232,7 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
         <div className="flex flex-wrap gap-1 text-[11px] uppercase">
           <Stat label="BTC" value={btc} />
           <Stat label="Matched" value={view ? String(openCount) : "—"} />
-          <Stat label="Fair" value={periods.day == null ? "—" : formatUsd(periods.day)} />
+          <Stat label="Fair" value={dayPnl == null ? "—" : formatUsd(dayPnl)} />
           <Stat label="Imbalance" value={imbalance} />
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
@@ -301,13 +300,8 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
           <Fact label="Margin used" value={margin ? formatUsd(margin.marginUsed) : "—"} />
           {margin?.showHaircut ? <Fact label="Collateral haircut" value={formatUsd(margin.haircut)} /> : null}
           <Fact label="Open" value={view ? String(openCount) : "—"} />
-          <Fact label="Today" value={periods.day == null ? "—" : formatUsd(periods.day)} tone={toneOf(periods.day)} />
+          <Fact label="Today" value={dayPnl == null ? "—" : formatUsd(dayPnl)} tone={toneOf(dayPnl)} />
         </dl>
-        <div className="mt-1 flex gap-1" role="group" aria-label="Realized window">
-          <Period id="day" label="1D" value={periods.day} active={period === "day"} onPick={setPeriod} />
-          <Period id="week" label="7D" value={periods.week} active={period === "week"} onPick={setPeriod} />
-          <Period id="month" label="30D" value={periods.month} active={period === "month"} onPick={setPeriod} />
-        </div>
       </section>
       <section className="g-osc fui-panel flex flex-col px-2 py-1">
         <PanelHead title="Model-book edge oscillator" tag={focus ? coinName(focus) : "—"} />
@@ -440,18 +434,6 @@ function TypedLine({ text, reduced }: { text: string; reduced: boolean }) {
     return () => window.clearInterval(id);
   }, [reduced, text]);
   return <p className="mt-2 min-h-10 text-sm text-[#b7fff8]">{text.slice(0, count)}</p>;
-}
-
-type PeriodId = "day" | "week" | "month";
-
-function Period({ id, label, value, active, onPick }: { id: PeriodId; label: string; value: number | null; active: boolean; onPick: (id: PeriodId) => void }) {
-  const tone = value == null || value === 0 ? "text-[#8fb4c9]" : value > 0 ? "text-[#39ff14]" : "text-[#ff2a6a]";
-  return (
-    <button type="button" aria-pressed={active} onClick={() => onPick(id)} className={`border px-1.5 py-0.5 text-left text-[10px] uppercase ${active ? "border-[#00f0ff] text-[#00f0ff]" : "border-[#16324a] text-[#8fb4c9]"}`}>
-      {label}
-      <div className={`text-sm ${tone}`}>{value == null ? "—" : formatUsd(value)}</div>
-    </button>
-  );
 }
 
 function coinName(symbol: string) {
@@ -606,12 +588,9 @@ function connectedTotal(state: DeskPayload) {
 
 function periodPnl(trades: Trade[]) {
   const now = Date.now();
-  const sum = (days: number) => {
-    const rows = trades.filter((trade) => trade.status === "closed" && trade.pnlUsd != null && (trade.closedAt ?? 0) >= now - days * 86_400_000);
-    if (rows.length === 0) return null;
-    return rows.reduce((total, trade) => total + (trade.pnlUsd ?? 0), 0);
-  };
-  return { day: sum(1), week: sum(7), month: sum(30) };
+  const rows = trades.filter((trade) => trade.status === "closed" && trade.pnlUsd != null && (trade.closedAt ?? 0) >= now - 86_400_000);
+  if (rows.length === 0) return null;
+  return rows.reduce((total, trade) => total + (trade.pnlUsd ?? 0), 0);
 }
 
 async function loadDesk(): Promise<{ status: number; payload: DeskPayload | null }> {
