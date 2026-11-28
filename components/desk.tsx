@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { ActivityStream } from "@/components/activity-stream";
 import { BotPanels, emptyBots } from "@/components/bots-strip";
@@ -41,9 +42,11 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
   const [performanceOpen, setPerformanceOpen] = useState(false);
   const query = "";
   const [reduced, setReduced] = useState(false);
-  const [phone, setPhone] = useState(false);
   const [shell, setShell] = useState(false);
-  const [chatCollapsed, setChatCollapsed] = useState(false);
+  const [shellReady, setShellReady] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const avatarRef = useRef<HTMLButtonElement>(null);
+  const [chatBox, setChatBox] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const [paperOn, setPaperOn] = useState(false);
   const [paper, setPaper] = useState<PaperSession | null>(null);
   const [beams, setBeams] = useState<BeamTarget[]>([]);
@@ -120,20 +123,67 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
   }, [allowDemo]);
 
   useEffect(() => {
-    const media = window.matchMedia("(max-width: 1179px)");
-    const apply = () => setPhone(media.matches);
+    const media = window.matchMedia("(min-width: 768px)");
+    const apply = () => {
+      setShell(media.matches);
+      setShellReady(true);
+    };
     apply();
     media.addEventListener("change", apply);
     return () => media.removeEventListener("change", apply);
   }, []);
 
   useEffect(() => {
-    const media = window.matchMedia("(min-width: 768px)");
-    const apply = () => setShell(media.matches);
-    apply();
-    media.addEventListener("change", apply);
-    return () => media.removeEventListener("change", apply);
-  }, []);
+    if (!chatOpen) return;
+    const place = () => {
+      const node = avatarRef.current;
+      if (!node) return;
+      const rect = node.getBoundingClientRect();
+      const viewport = window.visualViewport;
+      const viewTop = viewport?.offsetTop ?? 0;
+      const viewLeft = viewport?.offsetLeft ?? 0;
+      const viewWidth = viewport?.width ?? window.innerWidth;
+      const viewHeight = viewport?.height ?? window.innerHeight;
+      const gap = 8;
+      const margin = 8;
+      const width = Math.min(420, Math.max(240, viewWidth - margin * 2));
+      let left = rect.left;
+      if (left + width > viewLeft + viewWidth - margin) left = viewLeft + viewWidth - width - margin;
+      if (left < viewLeft + margin) left = viewLeft + margin;
+      const above = rect.top - viewTop - gap - margin;
+      const below = viewTop + viewHeight - rect.bottom - gap - margin;
+      const openAbove = above >= below;
+      let height = Math.min(420, Math.max(160, openAbove ? above : below));
+      let top = openAbove ? rect.top - gap - height : rect.bottom + gap;
+      const minTop = viewTop + margin;
+      const maxBottom = viewTop + viewHeight - margin;
+      if (openAbove && top < minTop) {
+        top = minTop;
+        height = Math.max(120, rect.top - gap - top);
+      } else if (!openAbove && top + height > maxBottom) {
+        height = Math.max(120, maxBottom - top);
+      }
+      setChatBox({ left, top, width, height });
+    };
+    place();
+    const frame = window.requestAnimationFrame(place);
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setChatOpen(false);
+    };
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    window.visualViewport?.addEventListener("resize", place);
+    window.visualViewport?.addEventListener("scroll", place);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+      window.visualViewport?.removeEventListener("resize", place);
+      window.visualViewport?.removeEventListener("scroll", place);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [chatOpen, shell]);
 
   useEffect(() => {
     const viewport = window.visualViewport;
@@ -318,13 +368,34 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
         </ul>
       </section>
       <section className="g-shell fui-panel relative h-full min-h-0">
-        <div className="absolute top-1 right-2 left-2 z-10">
+        <div className="pointer-events-none absolute top-1 right-2 left-2 z-10">
           <PanelHead title="Trading.exe" literal />
         </div>
-        <div className="absolute inset-0">
+        <button
+          ref={shell ? avatarRef : undefined}
+          type="button"
+          aria-label="Open chat"
+          aria-expanded={chatOpen}
+          aria-controls="avatar-chat"
+          onClick={() => setChatOpen((open) => !open)}
+          className="absolute inset-0 z-[1] cursor-pointer border-0 bg-transparent p-0"
+        >
           {shell && <WireGlobe reduced={reduced} spit={spit} />}
-        </div>
+        </button>
       </section>
+      {shellReady && !shell ? (
+        <button
+          ref={avatarRef}
+          type="button"
+          aria-label="Open chat"
+          aria-expanded={chatOpen}
+          aria-controls="avatar-chat"
+          onClick={() => setChatOpen((open) => !open)}
+          className="fixed right-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom)+var(--keyboard-inset,0px))] z-40 h-24 w-24 cursor-pointer border-0 bg-transparent p-0"
+        >
+          <WireGlobe reduced={reduced} spit={spit} />
+        </button>
+      ) : null}
       <section className="g-trades h-full min-h-0 overflow-auto">
         {view ? <OpenFuturesTrades account={view.account} prices={state?.tickerPrices ?? []} settled={view.trades.filter((trade) => trade.status === "closed").slice(0, 4)} query={query} paper={paperOn} /> : <Loading label="Loading trades…" />}
       </section>
@@ -349,19 +420,7 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
         <PanelHead title="Signal watch" />
         <SignalWatchPanel watch={view?.signals ?? null} now={view?.serverTime ?? Date.now()} paper={paperOn} />
       </section>
-      <section id="chat" className="g-chat fui-panel flex min-h-0 flex-col px-2 py-1">
-        <div className="flex items-center justify-between gap-2">
-          <PanelHead title="Chat" />
-          <button type="button" className="min-h-11 px-3 text-[11px] uppercase text-[#00f0ff] min-[1180px]:hidden" aria-expanded={!chatCollapsed} onClick={() => setChatCollapsed((collapsed) => !collapsed)}>
-            {chatCollapsed ? "Open" : "Hide"}
-          </button>
-        </div>
-        {!(phone && chatCollapsed) && (
-          <div className="min-h-0 flex-1 max-[1179px]:max-h-[46vh]">
-            {view ? <ActivityStream items={view.items} chatRelay={view.chatRelay} onRefresh={() => void refresh()} query={query} dock /> : <Loading label="Loading chat…" />}
-          </div>
-        )}
-      </section>
+      <section id="chat" className="g-chat" hidden />
       <section id="balances" className="g-phase fui-panel flex min-h-0 flex-col px-2 py-1">
         <PanelHead title="Open risk" tag={paperOn ? "PAPER" : `${risk.slots}/${risk.maxSlots}`} tone="yellow" />
         <p className="text-[10px] leading-[1.2] uppercase text-[#9fd8ff]">
@@ -395,6 +454,32 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
         </div>
       </section>
       {performanceOpen ? <PerformancePanel onClose={() => setPerformanceOpen(false)} /> : null}
+      {chatOpen && chatBox
+        ? createPortal(
+            <div
+              id="avatar-chat"
+              role="dialog"
+              aria-label="Chat"
+              className="fui-panel fixed z-50 flex flex-col px-2 py-1"
+              style={{ left: chatBox.left, top: chatBox.top, width: chatBox.width, height: chatBox.height }}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <PanelHead title="Chat" />
+                </div>
+                <button type="button" aria-label="Close chat" onClick={() => setChatOpen(false)} className="mb-1 min-h-11 min-w-11 shrink-0 cursor-pointer text-[18px] leading-none text-[#00f0ff]">
+                  ×
+                </button>
+              </div>
+              <div className="min-h-0 flex-1 overflow-hidden">
+                <div className="h-full">
+                  {view ? <ActivityStream items={view.items} chatRelay={view.chatRelay} onRefresh={() => void refresh()} query={query} dock /> : <Loading label="Loading chat…" />}
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
