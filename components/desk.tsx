@@ -22,7 +22,7 @@ import { paperView } from "@/lib/paper-view";
 import { equityPlot, equityStats } from "@/lib/equity-math";
 import { marginBreakdown } from "@/lib/margin";
 import { perpSymbol, UNIVERSE } from "@/lib/universe";
-import { formatCompact, formatPrice, formatQty, formatUsd } from "@/lib/format";
+import { formatCompact, formatPct, formatPrice, formatQty, formatUsd } from "@/lib/format";
 import { buildOpenFutures, withLivePrices } from "@/lib/futures-book";
 import { openRisk, type RecordedStop } from "@/lib/open-risk";
 import { CLIENT_POLL_MS } from "@/lib/poll";
@@ -584,11 +584,18 @@ function exposureRatio(state: DeskPayload | null) {
 function TotalProfit({ profit }: { profit: DeskPayload["futuresProfit"] | undefined }) {
   const value = profit?.profit ?? null;
   const tone = value == null || value === 0 ? "text-[#f4fbff]" : value > 0 ? "text-[#39ff14]" : "text-[#ff5a7a]";
+  const pct = profit?.depositPct;
   return (
     <div className="min-w-0 rounded border border-[#39ff14] px-1 py-0.5">
       <div className="text-[11px] leading-tight text-[#9fd8ff]">Total profit</div>
-      <div className={`break-words text-[14px] font-semibold leading-tight tabular-nums ${tone}`}>{value == null ? "—" : formatUsd(value)}</div>
-      {profit?.depositPct != null ? <div className="text-[10px] leading-tight text-[#9fd8ff] tabular-nums">{`${profit.depositPct.toFixed(1)}% of deposits`}</div> : null}
+      {value == null ? (
+        <div className="break-words text-[14px] font-semibold leading-tight text-[#ffcc00]">{profit?.error ?? "—"}</div>
+      ) : (
+        <div className={`flex flex-wrap items-baseline gap-x-1 break-words text-[14px] font-semibold leading-tight tabular-nums ${tone}`}>
+          <span>{formatUsd(value)}</span>
+          {pct != null ? <span>{formatPct(pct, 1)}</span> : null}
+        </div>
+      )}
     </div>
   );
 }
