@@ -1,6 +1,11 @@
 import { finite } from "./format";
 import { signedFee } from "./performance";
+import { readEquity } from "./equity-store";
 import { nextKrakenNonce, signKrakenRequest } from "./kraken";
+
+/** 2026-11-28 00:00 Europe/Sofia. Override with PROFIT_SINCE (ISO time or unix ms). */
+export const PROFIT_SINCE_MS = Date.parse("2026-11-27T22:00:00.000Z");
+const START_PORTFOLIO_WINDOW_MS = 5 * 60_000;
 
 /** History pool is 100 tokens per 10 minutes. count=1000 costs 3, so the log stays cached. */
 export const PROFIT_LOG_TTL_MS = 10 * 60_000;
@@ -14,7 +19,7 @@ export type ProfitMethod = "net-deposits" | "realized";
 export type FuturesProfit = {
   profit: number | null;
   method: ProfitMethod | null;
-  /** Profit divided by net deposits, or by portfolio minus profit when deposits are incomplete. */
+  /** Profit divided by the futures portfolio value at the start, when that snapshot exists. */
   depositPct: number | null;
   updatedAt: number | null;
   error?: string | null;
@@ -41,6 +46,26 @@ function store() {
 
 export function resetFuturesProfitForTests() {
   globalStore.__deskProfitLog = { cache: null, error: null, inflight: null };
+}
+
+export function profitSince(env = process.env.PROFIT_SINCE): number {
+  if (!env || !env.trim()) return PROFIT_SINCE_MS;
+  const numeric = Number(env.trim());
+  if (Number.isFinite(numeric) && numeric > 0) return numeric < 1e12 ? Math.round(numeric * 1000) : Math.round(numeric);
+  const parsed = Date.parse(env.trim());
+  return Number.isFinite(parsed) ? parsed : PROFIT_SINCE_MS;
+}
+
+/** Last futures portfolio snapshot within 5 minutes of the start, preferring one at or before it. */
+export function startingPortfolio(since = profitSince()): number | null {
+  let before: { ts: number; equity: number } | null = null;
+  let after: { ts: number; equity: number } | null = null;
+  for (const point of readEquity()) {
+    if (point.ts <= since && since - point.ts <= START_PORTFOLIO_WINDOW_MS && (!before || point.ts > before.ts)) before = point;
+    if (point.ts >= since && point.ts - since <= START_PORTFOLIO_WINDOW_MS && (!after || point.ts < after.ts)) after = point;
+  }
+  const chosen = before ?? after;
+  return chosen && chosen.equity > 0 ? chosen.equity : null;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -86,7 +111,7 @@ function money(value: number) {
   return (Math.round(value * 100) / 100).toFixed(2);
 }
 
-export function summarizeProfitLog(rows: unknown[], truncated: boolean): Omit<LogSummary, "at"> {
+export function summarizeProfitLog(rows: unknown[], truncated: boolean, since = profitSince()): Omit<LogSummary, "at"> {
   let netDeposits = 0;
   let cashRows = 0;
   let reliable = !truncated;
@@ -97,6 +122,8 @@ export function summarizeProfitLog(rows: unknown[], truncated: boolean): Omit<Lo
   for (const value of rows) {
     const row = asRecord(value);
     if (!row || typeof row.info !== "string") continue;
+    const time = eventMillis(row.date ?? row.time);
+    if (time == null || time < since) continue;
     const info = row.info.trim().toLowerCase();
     if (isCashInfo(info)) {
       cashRows += 1;
@@ -128,13 +155,11 @@ export function summarizeProfitLog(rows: unknown[], truncated: boolean): Omit<Lo
   };
 }
 
-export function profitFromSummary(summary: Omit<LogSummary, "at"> | null, portfolio: number | null, unrealized: number | null, updatedAt: number | null, error: string | null = null): FuturesProfit {
+export function profitFromSummary(summary: Omit<LogSummary, "at"> | null, portfolio: number | null, unrealized: number | null, updatedAt: number | null, error: string | null = null, openingPortfolio: number | null = null): FuturesProfit {
   if (!summary) return { profit: null, method: null, depositPct: null, updatedAt, error };
   const profit = summary.realizedNet + (unrealized ?? 0);
-  const depositBase = summary.reliableDeposits && summary.netDeposits != null && summary.netDeposits > 0 ? summary.netDeposits : null;
-  const equityBase = portfolio != null && portfolio - profit > 0 ? portfolio - profit : null;
-  const base = depositBase ?? equityBase;
-  const depositPct = base != null ? (profit / base) * 100 : null;
+  const depositPct = openingPortfolio != null && openingPortfolio > 0 ? (profit / openingPortfolio) * 100 : null;
+  void portfolio;
   return { profit, method: "realized", depositPct, updatedAt, error: null };
 }
 
@@ -206,10 +231,12 @@ function logRows(json: unknown) {
 
 async function loadLog(now: number): Promise<LogSummary | null> {
   const rows: unknown[] = [];
-  let from = 1;
+  const since = profitSince();
+  let from = 0;
   let truncated = false;
   for (let page = 0; page < PAGE_CAP; page += 1) {
-    const json = await krakenGet(`count=${PAGE_COUNT}&from=${from}&sort=asc`);
+    const query = page === 0 ? `count=${PAGE_COUNT}&since=${since}&sort=asc` : `count=${PAGE_COUNT}&from=${from}&sort=asc`;
+    const json = await krakenGet(query);
     const batch = logRows(json);
     if (batch.length === 0) break;
     rows.push(...batch);
@@ -241,8 +268,10 @@ export async function getFuturesProfit(portfolio: number | null, unrealized: num
           if (summary) {
             slot.cache = summary;
             slot.error = null;
+            const since = profitSince();
+            const base = startingPortfolio(since);
             const profit = summary.realizedNet + (unrealized ?? 0);
-            console.info(`[futures-profit] realized=${money(summary.realized)} funding=${money(summary.funding)} fees=${money(summary.fees)} unrealized=${unrealized == null ? "n/a" : money(unrealized)} total=${money(profit)} rows=${summary.rows} truncated=${summary.truncated}`);
+            console.info(`[futures-profit] realized=${money(summary.realized)} funding=${money(summary.funding)} fees=${money(summary.fees)} unrealized=${unrealized == null ? "n/a" : money(unrealized)} total=${money(profit)} rows=${summary.rows} truncated=${summary.truncated} since=${new Date(since).toISOString()} base=${base == null ? "n/a" : money(base)}`);
           }
           return slot.cache;
         })
@@ -259,8 +288,8 @@ export async function getFuturesProfit(portfolio: number | null, unrealized: num
     if (!slot.cache) {
       const summary = await slot.inflight;
       if (!summary) return blank(slot.error?.message ?? "history unavailable");
-      return profitFromSummary(summary, portfolio, unrealized, summary.at);
+      return profitFromSummary(summary, portfolio, unrealized, summary.at, null, startingPortfolio());
     }
   }
-  return profitFromSummary(slot.cache, portfolio, unrealized, slot.cache?.at ?? null);
+  return profitFromSummary(slot.cache, portfolio, unrealized, slot.cache?.at ?? null, null, startingPortfolio());
 }

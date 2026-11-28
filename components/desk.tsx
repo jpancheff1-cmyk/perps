@@ -596,6 +596,7 @@ function TotalProfit({ profit }: { profit: DeskPayload["futuresProfit"] | undefi
           {pct != null ? <span>{formatPct(pct, 1)}</span> : null}
         </div>
       )}
+      <div className="text-[10px] leading-tight text-[#9fd8ff]">since 28 Nov</div>
     </div>
   );
 }
