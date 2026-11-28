@@ -292,6 +292,7 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
           {margin?.showHaircut ? <Fact label="Collateral haircut" value={formatUsd(margin.haircut)} /> : null}
           <Fact label="Open" value={view ? String(openCount) : "—"} />
           <Fact label="Kraken Earn" value={earnTile(view?.earn)} plain={!view?.earn.connected} />
+          <TotalProfit profit={view?.futuresProfit} />
         </dl>
       </section>
       <section className="g-osc fui-panel flex flex-col px-2 py-1">
@@ -493,6 +494,18 @@ function exposureRatio(state: DeskPayload | null) {
   const notion = exposureRows(state).reduce((sum, row) => sum + row.long + row.short, 0);
   if (notion <= 0) return null;
   return Math.min(1, notion / state.account.portfolioValue);
+}
+
+function TotalProfit({ profit }: { profit: DeskPayload["futuresProfit"] | undefined }) {
+  const value = profit?.profit ?? null;
+  const tone = value == null || value === 0 ? "text-[#f4fbff]" : value > 0 ? "text-[#39ff14]" : "text-[#ff5a7a]";
+  return (
+    <div className="min-w-0 rounded border border-[#39ff14] px-1 py-0.5">
+      <div className="text-[11px] leading-tight text-[#9fd8ff]">Total profit</div>
+      <div className={`break-words text-[14px] font-semibold leading-tight tabular-nums ${tone}`}>{value == null ? "—" : formatUsd(value)}</div>
+      {profit?.depositPct != null ? <div className="text-[10px] leading-tight text-[#9fd8ff] tabular-nums">{`${profit.depositPct.toFixed(1)}% of deposits`}</div> : null}
+    </div>
+  );
 }
 
 function Fact({ label, value, tone, plain = false }: { label: string; value: string; tone?: "up" | "down"; plain?: boolean }) {

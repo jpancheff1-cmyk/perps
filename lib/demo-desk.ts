@@ -187,6 +187,7 @@ export function demoDesk(now = Date.now()): DeskPayload {
     serverTime: now,
     chatRelay: false,
     forceStopArmed: false,
+    futuresProfit: { profit: null, method: null, depositPct: null, updatedAt: null },
     signals: demoSignals(now),
   };
 }
