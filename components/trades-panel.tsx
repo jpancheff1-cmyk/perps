@@ -19,20 +19,20 @@ export function OpenFuturesTrades({ account, query = "", settled = [], paper = f
       {account.connected && (rows.length > 0 || closed.length > 0) && (
         <div className="min-h-0 flex-1 space-y-1 overflow-y-auto">
           {rows.map((row) => (
-            <article key={`${row.id}-${row.size}`} data-trade-row={row.symbol} className="tape-in border border-[#16324a] px-1.5 py-1">
-              <div className="flex items-center justify-between gap-2">
+            <article key={`${row.id}-${row.size}`} data-trade-row={row.symbol} className="trade-row tape-in border border-[#16324a] px-1.5 py-0.5">
+              <div className="flex items-center justify-between gap-2 leading-none">
                 <div className="flex min-w-0 items-center gap-1">
-                  <span className={`px-1 text-[10px] font-bold uppercase ${row.side === "short" ? "bg-[#7f1d1d] text-[#ffe4e6]" : "bg-[#145c3a] text-[#d1fae5]"}`}>
+                  <span className={`px-1 text-[10px] font-bold leading-none uppercase ${row.side === "short" ? "bg-[#7f1d1d] text-[#ffe4e6]" : "bg-[#145c3a] text-[#d1fae5]"}`}>
                     {row.pending ? "BUY" : row.side === "short" ? "SELL" : "BUY UP"}
                   </span>
-                  <h3 className="truncate font-semibold">{row.symbol}</h3>
+                  <h3 className="truncate font-semibold leading-none">{row.symbol}</h3>
                   {paper && <span className="text-[10px] font-bold text-[#ffcc00]">PAPER</span>}
                 </div>
-                <div className={`tabular-nums ${toneClass(row.pnlUsd)}`}>
+                <div className={`leading-none tabular-nums ${toneClass(row.pnlUsd)}`}>
                   {formatUsd(row.pnlUsd)} {formatPct(row.pnlPct)}
                 </div>
               </div>
-              <p className="text-[10px] leading-snug break-words text-[#d7eef8] uppercase">
+              <p className="text-[10px] leading-[1.05] break-words text-[#d7eef8] uppercase">
                 {row.side} · size {row.size == null ? "—" : row.size} · entry {formatPrice(row.entry)} · price {formatPrice(row.mark)} · upnl {formatUsd(row.pnlUsd)} · stop {formatPrice(row.stop)} · tp {formatPrice(row.target)} · trail {formatPrice(row.trail)}
               </p>
             </article>

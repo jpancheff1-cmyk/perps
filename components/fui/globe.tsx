@@ -4,10 +4,11 @@ import { useEffect, useRef, useState } from "react";
 
 export const globeLink = { x: 0, y: 0, ok: false };
 
-/** Circle diameter is 472. Capsule A is 22% by 10%, capsule B is 23% by 7%, one thickness apart in the upper right. */
+/** Equal capsules, side by side in the upper half of the 472 circle. */
+const EYE = { length: 92, thick: 36 } as const;
 const EYES = [
-  { cx: 270, cy: 206, length: 104, thick: 47 },
-  { cx: 342, cy: 156, length: 109, thick: 33 },
+  { cx: 196, cy: 188 },
+  { cx: 316, cy: 188 },
 ] as const;
 
 export function WireGlobe({ reduced, spit = 0 }: { reduced: boolean; spit?: number }) {
@@ -75,11 +76,11 @@ export function WireGlobe({ reduced, spit = 0 }: { reduced: boolean; spit?: numb
       <div className={`absolute left-1/2 top-1/2 ${reduced ? "-translate-x-1/2 -translate-y-1/2" : "avatar-bob"}`}>
         <div className={reduced ? "" : reacting ? "avatar-spit" : "avatar-breathe"}>
           <svg ref={orb} data-avatar-orb viewBox="20 20 472 472" className="h-[84px] w-[84px]" role="img" aria-label="Avatar">
-            <image href="/profile-picture.png" x="0" y="0" width="512" height="512" />
+            <circle cx="256" cy="256" r="236" fill="#fff" />
             <g ref={eyes}>
               {EYES.map((eye) => (
-                <g key={`${eye.cx}-${eye.cy}`} transform={`translate(${eye.cx} ${eye.cy}) rotate(55)`}>
-                  <rect x={-eye.length / 2} y={-eye.thick / 2} width={eye.length} height={eye.thick} rx={eye.thick / 2} fill="#fff" transform={`scale(1 ${blink})`} />
+                <g key={eye.cx} transform={`translate(${eye.cx} ${eye.cy})`}>
+                  <rect x={-EYE.length / 2} y={-EYE.thick / 2} width={EYE.length} height={EYE.thick} rx={EYE.thick / 2} fill="#000" transform={`scale(1 ${blink})`} />
                 </g>
               ))}
             </g>
