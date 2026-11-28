@@ -90,6 +90,10 @@ body {
   font-weight: 500;
 }
 
+.fui-panel h2.panel-literal {
+  text-transform: none;
+}
+
 .fui-label {
   color: #7fdbff;
   letter-spacing: 0.12em;

@@ -26,7 +26,7 @@ import { buildOpenFutures, withLivePrices } from "@/lib/futures-book";
 import { openRisk, type RecordedStop } from "@/lib/open-risk";
 import { CLIENT_POLL_MS } from "@/lib/poll";
 import { formatSofiaTime } from "@/lib/time";
-import type { DeskPayload, MarketCandle, PositionChart, Trade } from "@/lib/types";
+import type { DeskPayload, MarketCandle, PositionChart } from "@/lib/types";
 
 const WireGlobe = dynamic(() => import("@/components/fui/globe").then((mod) => mod.WireGlobe), {
   ssr: false,
@@ -204,7 +204,6 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
   const view = paperOn && paper && state ? paperView(state, paper) : demoOn ? fixture : state;
   const margin = view?.account.connected ? marginBreakdown(view.account) : null;
   const total = view ? connectedTotal(view) : null;
-  const dayPnl = view ? periodPnl(view.trades) : null;
   const charts = view?.charts ?? [];
   const nodes = globeNodes(charts, view);
   const focus = nodes[0]?.symbol ?? null;
@@ -292,7 +291,7 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
           <Fact label="Margin used" value={margin ? formatUsd(margin.marginUsed) : "—"} />
           {margin?.showHaircut ? <Fact label="Collateral haircut" value={formatUsd(margin.haircut)} /> : null}
           <Fact label="Open" value={view ? String(openCount) : "—"} />
-          <Fact label="Today" value={dayPnl == null ? "—" : formatUsd(dayPnl)} tone={toneOf(dayPnl)} />
+          <Fact label="Kraken Earn" value={earnTile(view?.earn)} plain={!view?.earn.connected} />
         </dl>
       </section>
       <section className="g-osc fui-panel flex flex-col px-2 py-1">
@@ -319,7 +318,7 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
       </section>
       <section className="g-shell fui-panel relative h-full min-h-0">
         <div className="absolute top-1 right-2 left-2 z-10">
-          <PanelHead title="Neural shell" />
+          <PanelHead title="Trading.exe" literal />
         </div>
         <div className="absolute inset-0">
           {shell && <WireGlobe reduced={reduced} spit={spit} />}
@@ -399,11 +398,11 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
   );
 }
 
-function PanelHead({ title, tag, tone = "cyan" }: { title: string; tag?: string; tone?: "cyan" | "green" | "yellow" | "red" }) {
+function PanelHead({ title, tag, tone = "cyan", literal = false }: { title: string; tag?: string; tone?: "cyan" | "green" | "yellow" | "red"; literal?: boolean }) {
   const color = tone === "green" ? "text-[#39ff14]" : tone === "yellow" ? "text-[#ffcc00]" : tone === "red" ? "text-[#ff2a6a]" : "text-[#00f0ff]";
   return (
     <div className="mb-1 flex items-center justify-between gap-2">
-      <h2 className="truncate text-[11px] tracking-[0.12em] text-[#9fd8ff] uppercase">{title}</h2>
+      <h2 className={`panel-literal truncate text-[11px] tracking-[0.12em] text-[#9fd8ff] ${literal ? "" : "uppercase"}`} style={literal ? { textTransform: "none" } : undefined}>{title}</h2>
       {tag ? <span className={`shrink-0 text-[10px] uppercase ${color}`}>{tag}</span> : null}
     </div>
   );
@@ -496,14 +495,21 @@ function exposureRatio(state: DeskPayload | null) {
   return Math.min(1, notion / state.account.portfolioValue);
 }
 
-function Fact({ label, value, tone }: { label: string; value: string; tone?: "up" | "down" }) {
+function Fact({ label, value, tone, plain = false }: { label: string; value: string; tone?: "up" | "down"; plain?: boolean }) {
   const color = tone === "up" ? "text-[#39ff14]" : tone === "down" ? "text-[#ff5a7a]" : "text-[#f4fbff]";
   return (
     <div className="min-w-0">
       <dt className="text-[11px] leading-tight text-[#9fd8ff]">{label}</dt>
-      <dd className={`break-words text-[14px] font-semibold leading-tight tabular-nums ${color}`}>{value}</dd>
+      <dd className={`break-words text-[14px] font-semibold leading-tight tabular-nums ${plain ? "normal-case" : ""} ${color}`}>{value}</dd>
     </div>
   );
+}
+
+function earnTile(earn: DeskPayload["earn"] | undefined) {
+  if (!earn || earn.reason === "not_configured") return "key needed";
+  if (earn.connected) return earn.totalUsd == null ? "—" : formatUsd(earn.totalUsd).replace(/^\+/, "");
+  if (/permission|earn query/i.test(earn.message ?? "")) return "need earn read";
+  return "key needed";
 }
 
 function toneOf(value: number | null | undefined): "up" | "down" | undefined {
@@ -564,18 +570,12 @@ function EquityCurve({ points }: { points: { ts: number; equity: number }[] }) {
   );
 }
 
+/** Futures portfolio value, plus spot USD, plus Earn allocations in USD. A book that is not connected is left out. */
 function connectedTotal(state: DeskPayload) {
   const parts = [state.account.connected ? state.account.portfolioValue : null, state.spot.connected ? state.spot.totalUsd : null, state.earn.connected ? state.earn.totalUsd : null];
   const known = parts.filter((value): value is number => value != null && Number.isFinite(value));
   if (known.length === 0) return null;
   return known.reduce((sum, value) => sum + value, 0);
-}
-
-function periodPnl(trades: Trade[]) {
-  const now = Date.now();
-  const rows = trades.filter((trade) => trade.status === "closed" && trade.pnlUsd != null && (trade.closedAt ?? 0) >= now - 86_400_000);
-  if (rows.length === 0) return null;
-  return rows.reduce((total, trade) => total + (trade.pnlUsd ?? 0), 0);
 }
 
 async function loadDesk(): Promise<{ status: number; payload: DeskPayload | null }> {

@@ -145,6 +145,17 @@ test("an empty flex book uses initial margin, not the collateral haircut", () =>
   assert.equal(tiny.showHaircut, false);
 });
 
+test("wallet shows Kraken Earn and the shell is Trading.exe", () => {
+  const desk = fs.readFileSync(new URL("../components/desk.tsx", import.meta.url), "utf8");
+  assert.equal(/neural shell/i.test(desk), false);
+  assert.match(desk, /title="Trading\.exe"/);
+  assert.match(desk, /label="Kraken Earn"/);
+  assert.match(desk, /return "key needed"/);
+  const wallet = desk.slice(desk.indexOf('className="g-wallet'), desk.indexOf('className="g-osc'));
+  assert.equal(wallet.includes('label="Today"'), false);
+  assert.match(wallet, /Kraken Earn/);
+});
+
 test("poll intervals stay on the desk clock", () => {
   assert.equal(ACCOUNT_POLL_MS, 10_000);
   assert.equal(LIQUIDATION_POLL_MS, 30_000);
