@@ -179,6 +179,7 @@ export function demoDesk(now = Date.now()): DeskPayload {
     ],
     quotes: [],
     quotesAt: null,
+    tickerPrices: [],
     equity: Array.from({ length: 36 }, (_, index) => {
       const dip = index > 20 && index < 28 ? (index - 20) * 800 : 0;
       return { ts: now - (36 - index) * 3_600_000, equity: 270000 + index * 420 - dip };

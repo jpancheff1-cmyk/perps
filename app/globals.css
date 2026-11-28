@@ -285,13 +285,9 @@ textarea {
   40% { transform: scale(1.06, 0.88) rotate(-7deg); }
   100% { transform: scale(1) rotate(0deg); }
 }
-@keyframes avatar-orbit {
-  to { transform: rotate(360deg); }
-}
 .avatar-bob { animation: avatar-bob 4s ease-in-out infinite; }
 .avatar-breathe { animation: avatar-breathe 4s ease-in-out infinite; }
 .avatar-spit { animation: avatar-spit 420ms ease; }
-.avatar-orbit { animation: avatar-orbit 48s linear infinite; }
 .beam-hit { background: rgba(255, 176, 32, 0.16); box-shadow: inset 0 0 0 1px #ffcc00; }
 
 @media (prefers-reduced-motion: reduce) {
@@ -311,8 +307,7 @@ textarea {
   .ticker-track,
   .avatar-bob,
   .avatar-breathe,
-  .avatar-spit,
-  .avatar-orbit {
+  .avatar-spit {
     animation: none;
   }
 }

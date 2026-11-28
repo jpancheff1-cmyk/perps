@@ -21,7 +21,7 @@ import { paperView } from "@/lib/paper-view";
 import { equityPlot, equityStats } from "@/lib/equity-math";
 import { marginBreakdown } from "@/lib/margin";
 import { perpSymbol, UNIVERSE } from "@/lib/universe";
-import { formatPrice, formatUsd } from "@/lib/format";
+import { formatUsd } from "@/lib/format";
 import { buildOpenFutures } from "@/lib/futures-book";
 import { entriesToday, openRisk } from "@/lib/open-risk";
 import { CLIENT_POLL_MS } from "@/lib/poll";
@@ -212,12 +212,10 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
   const focusChart = charts.find((chart) => chart.symbol === focus) ?? charts[0];
   const closes = focusChart?.candles.map((candle) => candle.c) ?? [];
   const returns = closes.slice(1).map((close, index) => close - closes[index]);
-  const btc = quote(charts, view, "BTC");
   const openCount = view?.account.positions.filter((position) => position.size).length ?? 0;
   const heat = fillCells(charts);
   const bars = exposureRows(view);
   const feedLine = liquidationFeedLines(state?.marketLiqs ?? []);
-  const imbalance = bookImbalance(view);
   const equity = equityStats(view?.equity ?? [], view?.serverTime ?? Date.now());
   const risk = openRisk(view ? buildOpenFutures(view.account.positions, view.account.orders).rows : [], charts, equity.current);
   const filledToday = view ? entriesToday(view.items, view.serverTime) : null;
@@ -229,12 +227,6 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
         <div className="min-w-0">
           <h1 className="text-[13px] font-bold tracking-[0.14em] text-[#00f0ff] uppercase">Mission Control</h1>
           {paperOn && <span className="border border-[#ffcc00] px-1 text-[10px] font-bold text-[#ffcc00]">PAPER</span>}
-        </div>
-        <div className="flex flex-wrap gap-1 text-[11px] uppercase">
-          <Stat label="BTC" value={btc} />
-          <Stat label="Matched" value={view ? String(openCount) : "—"} />
-          <Stat label="Fair" value={periods.day == null ? "—" : formatUsd(periods.day)} />
-          <Stat label="Imbalance" value={imbalance} />
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <span className="text-lg font-bold text-[#00f0ff] tabular-nums">{clock || "—"}</span>
@@ -336,11 +328,11 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
           <PanelHead title="Neural shell" />
         </div>
         <div className="absolute inset-0">
-          {shell && <WireGlobe nodes={nodes} active={focus} reduced={reduced} spit={spit} />}
+          {shell && <WireGlobe reduced={reduced} spit={spit} />}
         </div>
       </section>
       <section className="g-trades h-full min-h-0 overflow-auto">
-        {view ? <OpenFuturesTrades account={view.account} settled={view.trades.filter((trade) => trade.status === "closed").slice(0, 4)} query={query} paper={paperOn} /> : <Loading label="Loading trades…" />}
+        {view ? <OpenFuturesTrades account={view.account} prices={state?.tickerPrices ?? []} settled={view.trades.filter((trade) => trade.status === "closed").slice(0, 4)} query={query} paper={paperOn} /> : <Loading label="Loading trades…" />}
       </section>
       <section className="g-quant fui-panel flex min-h-0 flex-col px-2 py-1">
         <PanelHead title="Quant metrics" />
@@ -417,15 +409,6 @@ function PanelHead({ title, tag, tone = "cyan" }: { title: string; tag?: string;
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <span className="border border-[#16324a] px-1.5 py-0.5">
-      <span className="block text-[9px] text-[#5f7d90]">{label}</span>
-      <span className="text-[#e7f6ff]">{value}</span>
-    </span>
-  );
-}
-
 function TypedLine({ text, reduced }: { text: string; reduced: boolean }) {
   const [count, setCount] = useState(text.length);
   useEffect(() => {
@@ -471,14 +454,6 @@ function globeNodes(charts: PositionChart[], state: DeskPayload | null) {
   return nodes;
 }
 
-function quote(charts: PositionChart[], state: DeskPayload | null, coin: string) {
-  const chart = charts.find((item) => coinName(item.symbol) === coin && item.last != null);
-  if (chart?.last != null) return formatPrice(chart.last);
-  const asset = state?.spot.assets.find((item) => coinName(item.asset) === coin && item.usd != null);
-  if (asset?.usd != null && asset.balance) return formatPrice(asset.usd / asset.balance);
-  return "—";
-}
-
 function fillCells(charts: PositionChart[]) {
   const cells: { symbol: string; change: number | null }[] = [];
   for (const chart of charts) {
@@ -512,21 +487,6 @@ function exposureRatio(state: DeskPayload | null) {
   const notion = exposureRows(state).reduce((sum, row) => sum + row.long + row.short, 0);
   if (notion <= 0) return null;
   return Math.min(1, notion / state.account.portfolioValue);
-}
-
-function bookImbalance(state: DeskPayload | null) {
-  if (!state?.account.connected) return "—";
-  let long = 0;
-  let short = 0;
-  for (const position of state.account.positions) {
-    if (position.size == null || position.markPrice == null) continue;
-    const notion = Math.abs(position.size * position.markPrice);
-    if (position.side === "short") short += notion;
-    else long += notion;
-  }
-  const total = long + short;
-  if (total <= 0) return "—";
-  return `${(((long - short) / total) * 100).toFixed(1)}%`;
 }
 
 function Fact({ label, value, tone }: { label: string; value: string; tone?: "up" | "down" }) {
