@@ -145,6 +145,18 @@ test("an empty flex book uses initial margin, not the collateral haircut", () =>
   assert.equal(tiny.showHaircut, false);
 });
 
+test("chat opens from the Trading.exe avatar and the chat panel stays hidden", () => {
+  const desk = fs.readFileSync(new URL("../components/desk.tsx", import.meta.url), "utf8");
+  const css = fs.readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(desk, /aria-label="Open chat"/);
+  assert.match(desk, /aria-label="Close chat"/);
+  assert.match(desk, /cursor-pointer/);
+  assert.match(desk, /event\.key === "Escape"/);
+  assert.match(desk, /<section id="chat" className="g-chat" hidden \/>/);
+  assert.match(css, /\.g-chat \{ grid-area: 7 \/ 1 \/ 8 \/ 5; display: none; \}/);
+  assert.match(css, /\.g-chat \{[\s\S]*?display:\s*none/);
+});
+
 test("wallet shows Kraken Earn and the shell is Trading.exe", () => {
   const desk = fs.readFileSync(new URL("../components/desk.tsx", import.meta.url), "utf8");
   assert.equal(/neural shell/i.test(desk), false);
