@@ -10,6 +10,7 @@ import { coinFromPerp } from "@/lib/universe";
 import { chatRelayConfigured } from "@/lib/chat";
 import { requireUser } from "@/lib/guard";
 import { forceStopArmed } from "@/lib/kraken-trade";
+import { getFuturesProfit } from "@/lib/futures-profit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,6 +26,10 @@ export async function GET(request: NextRequest) {
     getTickerPrices(),
   ]);
   const signals = await getSignalWatch(snapshot.account.positions.filter((position) => position.size).map((position) => coinFromPerp(position.symbol)));
+  const futuresProfit = await getFuturesProfit(
+    snapshot.account.connected ? snapshot.account.portfolioValue : null,
+    snapshot.account.connected ? snapshot.account.unrealizedPnl : null,
+  );
   return NextResponse.json(
     {
       ...snapshot,
@@ -40,6 +45,7 @@ export async function GET(request: NextRequest) {
       serverTime: Date.now(),
       chatRelay: chatRelayConfigured(),
       forceStopArmed: forceStopArmed(),
+      futuresProfit,
     },
     { headers: { "Cache-Control": "no-store" } },
   );

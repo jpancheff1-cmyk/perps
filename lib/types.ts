@@ -240,6 +240,14 @@ export type FuturesQuote = { coin: string; price: number; change24: number };
 /** Public Kraken Futures mark, or last when mark is absent, keyed by contract symbol. */
 export type TickerPrice = { symbol: string; price: number };
 
+/** All-time futures profit. net-deposits is portfolio minus net deposits; realized is log P&L plus unrealized. */
+export type FuturesProfit = {
+  profit: number | null;
+  method: "net-deposits" | "realized" | null;
+  depositPct: number | null;
+  updatedAt: number | null;
+};
+
 export type DeskPayload = {
   account: AccountPayload;
   spot: SpotPayload;
@@ -258,4 +266,5 @@ export type DeskPayload = {
   serverTime: number;
   chatRelay: boolean;
   forceStopArmed: boolean;
+  futuresProfit: FuturesProfit;
 };
