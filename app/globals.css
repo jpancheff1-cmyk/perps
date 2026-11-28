@@ -73,6 +73,9 @@ body {
   .g-chat { grid-area: 7 / 1 / 8 / 5; }
   .g-ask, .g-pay { display: none; }
   .g-trades article { padding: 10px 12px; font-size: 14px; }
+  .g-trades article.trade-row { padding-top: 7px; padding-bottom: 7px; }
+  .g-trades article.trade-row h3,
+  .g-trades article.trade-row p { line-height: 1.05; }
   .g-trades h2, .g-trades h3 { font-size: 15px; }
   .g-osc, .g-heat, .g-quant { display: none; }
   .signal-row { line-height: 1.15; padding-top: 2px; padding-bottom: 2px; }
@@ -251,6 +254,13 @@ textarea {
   .g-trades article {
     min-height: 44px;
   }
+  .g-trades article.trade-row {
+    min-height: 0;
+    padding-top: 2px;
+    padding-bottom: 2px;
+  }
+  .g-trades article.trade-row h3,
+  .g-trades article.trade-row p { line-height: 1.05; }
   .signal-head { display: none; }
   .signal-row {
     display: flex;
