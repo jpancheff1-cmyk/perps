@@ -49,6 +49,7 @@ body {
   flex-direction: column;
   gap: 4px;
   padding: 4px;
+  border-bottom: 1px solid #1c3b55;
 }
 
 @media (min-width: 1180px) {

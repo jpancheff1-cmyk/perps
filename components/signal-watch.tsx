@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { formatSofiaTime } from "@/lib/time";
 import type { SignalRow, SignalWatch } from "@/lib/types";
 
 const TONE: Record<SignalRow["status"], string> = {
@@ -24,7 +25,10 @@ export function SignalWatchPanel({ watch, now, paper = false }: { watch: SignalW
   });
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="mb-1 text-[13px] font-bold text-[#ffcc00] tabular-nums">{clock(watch?.nextClose ?? now, tick)}</div>
+      <div className="mb-1 flex items-baseline justify-between gap-2">
+        <div className="text-[13px] font-bold text-[#ffcc00] tabular-nums">{clock(watch?.nextClose ?? now, tick)}</div>
+        <div className="text-[10px] uppercase text-[#9fd8ff]">{watch?.updatedAt != null ? `updated ${formatSofiaTime(watch.updatedAt).slice(0, 5)} Sofia` : ""}</div>
+      </div>
       <div className="signal-sort mb-1 flex gap-1 min-[1180px]:hidden">
         <button type="button" onClick={() => setSort("score")} className="px-2 text-[11px] uppercase text-[#9fd8ff]">Score</button>
         <button type="button" onClick={() => setSort("coin")} className="px-2 text-[11px] uppercase text-[#9fd8ff]">Coin</button>
@@ -54,7 +58,7 @@ export function SignalWatchPanel({ watch, now, paper = false }: { watch: SignalW
   );
 }
 
-const MISS = { cross: "cross", adx: "ADX", daily: "daily" } as const;
+const MISS = { cross: "cross", adx: "ADX", daily: "daily", history: "history", btc: "BTC trend" } as const;
 
 function formatAdx(value: number) {
   const rounded = value.toFixed(1);
@@ -65,6 +69,8 @@ function formatAdx(value: number) {
 function statusLabel(row: SignalRow, paper: boolean) {
   if (row.status === "in") return paper ? "In position · PAPER" : "In position";
   if (row.preview) return "Ready (if it holds at close)";
+  if (row.missing.includes("btc")) return "Blocked · BTC trend";
+  if (row.missing.includes("history")) return "No · history";
   const miss = row.missing.map((item) => MISS[item]).join(", ");
   if (row.status === "ready") return "Ready";
   if (row.status === "near") return miss ? `Near · ${miss}` : "Near";

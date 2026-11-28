@@ -32,6 +32,16 @@ export const UNIVERSE = [
   "STRK",
   "FIL",
   "TIA",
+  "PUMP",
+  "DASH",
+  "ONDO",
+  "RUNE",
+  "TRUMP",
+  "PORTAL",
+  "ICP",
+  "ATOM",
+  "ALGO",
+  "MON",
 ] as const;
 
 export type UniverseCoin = (typeof UNIVERSE)[number];

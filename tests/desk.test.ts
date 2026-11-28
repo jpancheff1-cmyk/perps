@@ -12,7 +12,8 @@ import { equityPlot, equityStats } from "../lib/equity-math.ts";
 import { readEquity, recordEquity, resetEquityForTests } from "../lib/equity-store.ts";
 import { idleFeedLine, lastSofia4h, liquidationFeedLines, liveFeedLines, positionLiqLines } from "../lib/live-feed.ts";
 import { parseHistory } from "../lib/market-liqs.ts";
-import { ema, nextSofia4h, scoreSignal, signalFromCandles } from "../lib/signals.ts";
+import { alignToBtc, ema, nextSofia4h, scoreSignal, signalFromCandles } from "../lib/signals.ts";
+import { REFRESH_MS, keepSignalRows } from "../lib/signal-poller.ts";
 import { UNIVERSE } from "../lib/universe.ts";
 import { atr14, entriesToday, openRisk } from "../lib/open-risk.ts";
 import type { ActivityItem } from "../lib/types.ts";
@@ -22,7 +23,7 @@ import { activityMatches, waitingForReply } from "../lib/feed.ts";
 import { parseKrakenAccount, signKrakenRequest } from "../lib/kraken.ts";
 import { marginBreakdown, positionInitialMargin } from "../lib/margin.ts";
 import { realizedSeries } from "../lib/pnl.ts";
-import { ACCOUNT_POLL_MS, CLIENT_POLL_MS } from "../lib/poll.ts";
+import { ACCOUNT_POLL_MS, CLIENT_POLL_MS, LIQUIDATION_POLL_MS } from "../lib/poll.ts";
 import { formatSofiaTime, startOfSofiaDay } from "../lib/time.ts";
 import type { Trade } from "../lib/types.ts";
 
@@ -145,8 +146,10 @@ test("an empty flex book uses initial margin, not the collateral haircut", () =>
 });
 
 test("poll intervals stay on the desk clock", () => {
-  assert.equal(ACCOUNT_POLL_MS, 30_000);
+  assert.equal(ACCOUNT_POLL_MS, 10_000);
+  assert.equal(LIQUIDATION_POLL_MS, 30_000);
   assert.equal(CLIENT_POLL_MS, 5_000);
+  assert.ok(CLIENT_POLL_MS <= 60_000);
 });
 
 test("ingest writes activity and trades, and the same trade id updates in place", () => {
@@ -533,7 +536,7 @@ test("signal rules mark a 4h trend only when ADX and the daily side agree", () =
   assert.equal(ema([2, 2, 2, 2], 3), 2);
   assert.deepEqual(
     [...UNIVERSE],
-    ["BTC", "ETH", "BNB", "XRP", "SOL", "HYPE", "ZEC", "DOGE", "LINK", "ADA", "XLM", "NEAR", "BCH", "LTC", "AVAX", "UNI", "SUI", "HBAR", "TAO", "AAVE", "PEPE", "CRV", "INJ", "ENA", "FET", "SEI", "DOT", "ARB", "POL", "STRK", "FIL", "TIA"],
+    ["BTC", "ETH", "BNB", "XRP", "SOL", "HYPE", "ZEC", "DOGE", "LINK", "ADA", "XLM", "NEAR", "BCH", "LTC", "AVAX", "UNI", "SUI", "HBAR", "TAO", "AAVE", "PEPE", "CRV", "INJ", "ENA", "FET", "SEI", "DOT", "ARB", "POL", "STRK", "FIL", "TIA", "PUMP", "DASH", "ONDO", "RUNE", "TRUMP", "PORTAL", "ICP", "ATOM", "ALGO", "MON"],
   );
   const atTenFiftyTwoSofia = Date.parse("2026-11-27T08:52:00Z");
   const next = nextSofia4h(atTenFiftyTwoSofia);
@@ -558,6 +561,45 @@ test("signal rules mark a 4h trend only when ADX and the daily side agree", () =
   assert.equal(scoreSignal({ close: 200, ema20: 90, ema50: 100, prevEma20: 95, prevEma50: 100, adx: 10, dailyEma: 50, inPosition: false }).status, "no");
   assert.equal(scoreSignal({ close: 120, ema20: 110, ema50: 100, prevEma20: 99, prevEma50: 100, adx: 40, dailyEma: 90, inPosition: true }).status, "in");
   for (const coin of UNIVERSE) assert.equal(fs.existsSync(new URL(`../public/coins/${coin.toLowerCase()}.svg`, import.meta.url)), true, coin);
+  assert.equal(UNIVERSE.length, 42);
+  assert.equal(REFRESH_MS, 60_000);
+
+  const thin = signalFromCandles("PUMP", [{ t: 1, h: 2, l: 1, c: 1 }], [{ t: 1, h: 2, l: 1, c: 1 }], false, Date.parse("2026-11-27T12:00:00Z"));
+  assert.equal(thin.status, "no");
+  assert.deepEqual(thin.missing, ["history"]);
+
+  const readyLong = {
+    coin: "ETH",
+    price: 100,
+    change24: 1,
+    trend: "up" as const,
+    dailySide: true,
+    adx: 40,
+    score: 90,
+    status: "ready" as const,
+    missing: [] as const,
+    preview: false,
+  };
+  assert.equal(alignToBtc(readyLong, "up").status, "ready");
+  const blocked = alignToBtc(readyLong, "down");
+  assert.equal(blocked.status, "no");
+  assert.deepEqual(blocked.missing, ["btc"]);
+  assert.equal(alignToBtc({ ...readyLong, coin: "BTC" }, "down").status, "ready");
+  const nearShort = { ...readyLong, coin: "SOL", trend: "down" as const, status: "near" as const, missing: ["adx" as const] };
+  assert.equal(alignToBtc(nearShort, "down").status, "near");
+  assert.deepEqual(alignToBtc(nearShort, "up").missing, ["btc"]);
+
+  const kept = keepSignalRows([readyLong], [{ coin: "ETH", ok: false, row: thin }]);
+  assert.equal(kept.keptPrevious, true);
+  assert.equal(kept.rows[0]?.status, "ready");
+  const partial = keepSignalRows([readyLong], [
+    { coin: "ETH", ok: true, row: { ...readyLong, score: 10 } },
+    { coin: "SOL", ok: false, row: thin },
+  ]);
+  assert.equal(partial.keptPrevious, false);
+  assert.equal(partial.rows[0]?.score, 10);
+  assert.equal(partial.rows[1]?.status, "no");
+  assert.deepEqual(partial.rows[1]?.missing, ["history"]);
 });
 
 test("FET-like numbers are not READY without a closed cross, closed ADX, and the daily side", () => {
@@ -671,6 +713,27 @@ test("public history keeps liquidation prints and drops fills", () => {
   assert.equal(fs.readFileSync(new URL("../lib/market-liqs.ts", import.meta.url), "utf8").includes("KRAKEN_FUTURES_API_KEY"), false);
 });
 
+function riskRow() {
+  return {
+    id: "1",
+    symbol: "PF_XBTUSD",
+    side: "long",
+    size: 2,
+    leverage: 3,
+    entry: 100,
+    mark: 100,
+    pnlUsd: 0,
+    pnlPct: 0,
+    liquidation: 80,
+    margin: 60,
+    openedAt: 1,
+    stop: 95 as number | null,
+    target: null,
+    trail: null,
+    pending: false,
+  };
+}
+
 test("open risk prices the stop in percent, ATR, and dollars", () => {
   const candles = Array.from({ length: 20 }, (_, index) => ({ t: index, o: 100, h: 101, l: 99, c: 100 }));
   assert.equal(atr14(candles), 2);
@@ -698,11 +761,47 @@ test("open risk prices the stop in percent, ATR, and dollars", () => {
     1000,
   );
   assert.equal(risk.rows[0]?.coin, "BTC");
+  assert.equal(risk.rows[0]?.stop, 95);
+  assert.equal(risk.rows[0]?.price, 100);
   assert.equal(risk.rows[0]?.stopPct, 5);
-  assert.equal(risk.rows[0]?.stopAtr, 2.5);
   assert.equal(risk.rows[0]?.riskUsd, 10);
-  assert.equal(risk.rows[0]?.partialPct, 5);
+  assert.equal(risk.rows[0]?.riskPct, 1);
   assert.equal(risk.totalPct, 1);
+  assert.equal(risk.slots, 1);
+  assert.equal(risk.maxSlots, 10);
+  assert.equal(risk.notional, 200);
+  assert.equal(risk.notionalCap, 1000);
+  assert.equal(risk.rows[0]?.sharePct, 100);
+  const fromEngine = openRisk(
+    [{ ...riskRow(), stop: null, mark: 110 }],
+    [{ symbol: "PF_XBTUSD", candles, rsi: null, support: null, resistance: null, liqClusters: [], last: 110 }],
+    1000,
+    [{ coin: "BTC", side: "long", stop: 90, ts: 2 }],
+  );
+  assert.equal(fromEngine.rows[0]?.stop, 90);
+  const older = openRisk(
+    [{ ...riskRow(), stop: null }],
+    [{ symbol: "PF_XBTUSD", candles, rsi: null, support: null, resistance: null, liqClusters: [], last: 100 }],
+    1000,
+    [
+      { coin: "BTC", side: "long", stop: 80, ts: 1 },
+      { coin: "BTC", side: "long", stop: 92, ts: 5 },
+    ],
+  );
+  assert.equal(older.rows[0]?.stop, 92);
+  const fromAtr = openRisk(
+    [{ ...riskRow(), stop: null, entry: 100, mark: 100 }],
+    [{ symbol: "PF_XBTUSD", candles, rsi: null, support: null, resistance: null, liqClusters: [], last: 100 }],
+    1000,
+  );
+  assert.equal(fromAtr.rows[0]?.stop, 96);
+  assert.equal(fromAtr.rows[0]?.stopPct, 4);
+  assert.equal(fromAtr.rows[0]?.riskUsd, 8);
+  const bare = openRisk([{ ...riskRow(), stop: null, mark: 100 }], [], 1000);
+  assert.equal(bare.rows[0]?.stop, null);
+  assert.equal(bare.rows[0]?.riskUsd, null);
+  assert.equal(bare.rows[0]?.sharePct, 0);
+  assert.equal(bare.totalUsd, null);
   const now = Date.parse("2026-11-27T10:00:00Z");
   assert.equal(
     entriesToday(

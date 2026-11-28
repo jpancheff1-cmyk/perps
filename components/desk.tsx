@@ -21,9 +21,9 @@ import { paperView } from "@/lib/paper-view";
 import { equityPlot, equityStats } from "@/lib/equity-math";
 import { marginBreakdown } from "@/lib/margin";
 import { perpSymbol, UNIVERSE } from "@/lib/universe";
-import { formatUsd } from "@/lib/format";
-import { buildOpenFutures } from "@/lib/futures-book";
-import { entriesToday, openRisk } from "@/lib/open-risk";
+import { formatCompact, formatPrice, formatQty, formatUsd } from "@/lib/format";
+import { buildOpenFutures, withLivePrices } from "@/lib/futures-book";
+import { openRisk, type RecordedStop } from "@/lib/open-risk";
 import { CLIENT_POLL_MS } from "@/lib/poll";
 import { formatSofiaTime } from "@/lib/time";
 import type { DeskPayload, MarketCandle, PositionChart, Trade } from "@/lib/types";
@@ -216,11 +216,11 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
   const bars = exposureRows(view);
   const feedLine = liquidationFeedLines(state?.marketLiqs ?? []);
   const equity = equityStats(view?.equity ?? [], view?.serverTime ?? Date.now());
-  const risk = openRisk(view ? buildOpenFutures(view.account.positions, view.account.orders).rows : [], charts, equity.current);
-  const filledToday = view ? entriesToday(view.items, view.serverTime) : null;
+  const pricedRows = view ? withLivePrices(buildOpenFutures(view.account.positions, view.account.orders).rows, state?.tickerPrices ?? []) : [];
+  const risk = openRisk(pricedRows, charts, equity.current, engineStops(view));
 
   return (
-    <div className="fui-grid fui-screen relative z-10 bg-[#070710] text-[#e7f6ff] pb-[env(safe-area-inset-bottom)]">
+    <div className="fui-grid fui-screen relative z-10 border-b border-solid border-[#1c3b55] bg-[#070710] text-[#e7f6ff] pb-[env(safe-area-inset-bottom)]">
       <TradeBeam beams={beams} reduced={reduced} />
       <header className="g-head fui-panel flex flex-wrap items-center gap-x-3 gap-y-1 px-2 py-1">
         <div className="min-w-0">
@@ -363,26 +363,32 @@ export function Desk({ allowDemo = false }: { allowDemo?: boolean }) {
         )}
       </section>
       <section id="balances" className="g-phase fui-panel flex min-h-0 flex-col px-2 py-1">
-        <PanelHead title="Open risk" tag={paperOn ? "PAPER" : risk.totalPct == null ? "—" : `${risk.totalPct.toFixed(1)}%`} tone="yellow" />
-        <p className="text-[10px] uppercase text-[#9fd8ff]">{filledToday == null ? "—" : `${filledToday}/10`}</p>
-        <div className="min-h-0 flex-1 space-y-0.5 overflow-auto text-[10px] uppercase">
+        <PanelHead title="Open risk" tag={paperOn ? "PAPER" : `${risk.slots}/${risk.maxSlots}`} tone="yellow" />
+        <p className="text-[10px] leading-[1.2] uppercase text-[#9fd8ff]">
+          {risk.slots}/{risk.maxSlots} slots
+          {risk.totalUsd != null ? ` · risk ${plainUsd(risk.totalUsd)}` : ""}
+          {risk.totalPct != null ? ` · ${risk.totalPct.toFixed(1)}% eq` : ""}
+          {risk.notional != null ? ` · notional ${formatCompact(risk.notional)}${risk.notionalCap != null ? ` / ${formatCompact(risk.notionalCap)}` : ""}` : ""}
+        </p>
+        <div className="min-h-0 flex-1 space-y-1 overflow-auto text-[10px] uppercase">
           {risk.rows.map((row) => (
-            <div key={row.id} className="grid grid-cols-[52px_1fr] items-center gap-1">
-              <span className={row.side === "short" ? "text-[#ff2a6a]" : "text-[#39ff14]"}>
-                {paperOn ? "PAPER " : ""}{row.coin} {row.side === "short" ? "S" : "L"}
-              </span>
-              <span className="truncate text-[#d7f6ff]">
-                {row.stopPct == null ? "—" : `${row.stopPct.toFixed(1)}%`}
+            <div key={row.id} className="min-w-0">
+              <div className="flex items-baseline justify-between gap-1">
+                <span className={row.side === "short" ? "text-[#ff2a6a]" : "text-[#39ff14]"}>
+                  {paperOn ? "PAPER " : ""}{row.coin} {row.side === "short" ? "S" : "L"}
+                </span>
+                <span className={`shrink-0 tabular-nums ${row.pnlUsd != null && row.pnlUsd < 0 ? "text-[#ff2a6a]" : "text-[#39ff14]"}`}>{formatUsd(row.pnlUsd)}</span>
+              </div>
+              <p className="leading-[1.15] break-words text-[#d7f6ff]">
+                sz {formatQty(row.size)} · entry {formatPrice(row.entry)} · px {formatPrice(row.price)}
                 {" · "}
-                {row.stopAtr == null ? "—" : `${row.stopAtr.toFixed(1)} atr`}
-                {" · "}
-                {row.riskUsd == null ? "—" : formatUsd(row.riskUsd)}
-                {" · "}
-                {row.partialPct == null ? "—" : `${row.partialPct.toFixed(1)}%`}
-              </span>
-              <span />
-              <span className="h-1 bg-[#102033]">
-                <span className="block h-1 bg-[#ffcc00]" style={{ width: `${Math.max(0, Math.min(100, row.stopPct ?? 0))}%` }} />
+                {row.stop == null ? <span className="text-[#ffcc00]">no stop</span> : `stop ${formatPrice(row.stop)}`}
+                {row.stopPct != null ? ` · ${row.stopPct.toFixed(1)}%` : ""}
+                {row.riskUsd != null ? ` · risk ${plainUsd(row.riskUsd)}` : ""}
+                {row.riskPct != null ? ` ${row.riskPct.toFixed(1)}%` : ""}
+              </p>
+              <span className="mt-0.5 block h-1 bg-[#102033]">
+                <span className="block h-1 bg-[#ffcc00]" style={{ width: `${Math.max(0, Math.min(100, row.sharePct))}%` }} />
               </span>
             </div>
           ))}
@@ -417,6 +423,25 @@ function TypedLine({ text, reduced }: { text: string; reduced: boolean }) {
     return () => window.clearInterval(id);
   }, [reduced, text]);
   return <p className="mt-2 min-h-10 text-sm text-[#b7fff8]">{text.slice(0, count)}</p>;
+}
+
+function plainUsd(value: number) {
+  return `$${Math.abs(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function engineStops(view: DeskPayload | null): RecordedStop[] {
+  if (!view) return [];
+  const stops: RecordedStop[] = [];
+  for (const trade of view.trades) {
+    if (trade.status !== "open" || trade.stop == null) continue;
+    stops.push({ coin: trade.coin, side: trade.side, stop: trade.stop, ts: trade.updatedAt });
+  }
+  for (const item of view.items) {
+    const trade = item.trade;
+    if (!trade || trade.status !== "open" || trade.stop == null) continue;
+    stops.push({ coin: trade.coin, side: trade.side, stop: trade.stop, ts: item.ts });
+  }
+  return stops;
 }
 
 function coinName(symbol: string) {

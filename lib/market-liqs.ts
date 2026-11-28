@@ -1,5 +1,5 @@
 import { finite } from "./format";
-import { ACCOUNT_POLL_MS } from "./poll";
+import { LIQUIDATION_POLL_MS } from "./poll";
 import type { MarketLiquidation } from "./types";
 import { perpSymbol, UNIVERSE } from "./universe";
 
@@ -94,16 +94,16 @@ function start() {
   if (poll.timer) return;
   const timer = setInterval(() => {
     void refresh();
-  }, ACCOUNT_POLL_MS);
+  }, LIQUIDATION_POLL_MS);
   (timer as unknown as { unref?: () => void }).unref?.();
   poll.timer = timer;
 }
 
-/** Cached public liquidation prints. Refreshes at the account poll interval. */
+/** Cached public liquidation prints. Refreshes on its own 30 second clock. */
 export async function getMarketLiquidations(symbols: string[] = []): Promise<MarketLiquidation[]> {
   const poll = state();
   poll.extra = [...new Set(symbols.filter(Boolean))].slice(0, 8);
   start();
-  if (!poll.at || Date.now() - poll.at >= ACCOUNT_POLL_MS) await refresh();
+  if (!poll.at || Date.now() - poll.at >= LIQUIDATION_POLL_MS) await refresh();
   return poll.events;
 }

@@ -209,7 +209,7 @@ export type BotsView = { xstocks: XStocksView; dca: DcaView };
 export type EquityPoint = { ts: number; equity: number };
 
 export type SignalStatus = "ready" | "near" | "no" | "in";
-export type SignalMiss = "cross" | "adx" | "daily";
+export type SignalMiss = "cross" | "adx" | "daily" | "history" | "btc";
 
 export type SignalRow = {
   coin: string;
@@ -225,7 +225,7 @@ export type SignalRow = {
   preview: boolean;
 };
 
-export type SignalWatch = { nextClose: number; rows: SignalRow[] };
+export type SignalWatch = { nextClose: number; rows: SignalRow[]; updatedAt: number | null };
 
 export type MarketLiquidation = {
   symbol: string;
