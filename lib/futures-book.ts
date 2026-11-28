@@ -26,6 +26,37 @@ export function futuresPnlPct(side: string, entry: number | null, mark: number |
   return move * lev * 100;
 }
 
+/** Linear perp (PF_/FF_) dollar uPnL from the price shown on the row. Inverse contracts keep the exchange figure. */
+export function futuresPnlUsd(symbol: string, side: string, entry: number | null, price: number | null, size: number | null) {
+  if (symbol.startsWith("PI_") || symbol.startsWith("FI_")) return null;
+  if (entry == null || price == null || size == null) return null;
+  const abs = Math.abs(size);
+  return side === "short" ? (entry - price) * abs : (price - entry) * abs;
+}
+
+/** Replace a missing or stale mark with the public ticker and recompute client-side uPnL from that price. */
+export function withLivePrices(rows: OpenFuturesRow[], prices: { symbol: string; price: number }[]) {
+  const bySymbol = new Map<string, number>();
+  for (const quote of prices) {
+    const symbol = quote.symbol.toUpperCase();
+    if (!symbol || !Number.isFinite(quote.price)) continue;
+    bySymbol.set(symbol, quote.price);
+  }
+  if (bySymbol.size === 0) return rows;
+  return rows.map((row) => {
+    const live = bySymbol.get(row.symbol.toUpperCase());
+    if (live == null) return row;
+    if (row.pending) return { ...row, mark: live };
+    const pnlUsd = futuresPnlUsd(row.symbol, row.side, row.entry, live, row.size);
+    return {
+      ...row,
+      mark: live,
+      pnlPct: futuresPnlPct(row.side, row.entry, live, row.leverage),
+      pnlUsd: pnlUsd ?? row.pnlUsd,
+    };
+  });
+}
+
 export function futuresMargin(symbol: string, size: number | null, price: number | null, leverage: number | null) {
   if (size == null || price == null || price === 0 || leverage == null || leverage <= 0) return null;
   const abs = Math.abs(size);

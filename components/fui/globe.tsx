@@ -4,15 +4,13 @@ import { useEffect, useRef, useState } from "react";
 
 export const globeLink = { x: 0, y: 0, ok: false };
 
-export type GlobeNode = { symbol: string };
-
 /** Circle diameter is 472. Capsule A is 22% by 10%, capsule B is 23% by 7%, one thickness apart in the upper right. */
 const EYES = [
   { cx: 270, cy: 206, length: 104, thick: 47 },
   { cx: 342, cy: 156, length: 109, thick: 33 },
 ] as const;
 
-export function WireGlobe({ nodes, active, reduced, spit = 0 }: { nodes: GlobeNode[]; active: string | null; reduced: boolean; spit?: number }) {
+export function WireGlobe({ reduced, spit = 0 }: { reduced: boolean; spit?: number }) {
   const orb = useRef<SVGSVGElement>(null);
   const eyes = useRef<SVGGElement>(null);
   const look = useRef({ x: 0, y: 0 });
@@ -74,25 +72,14 @@ export function WireGlobe({ nodes, active, reduced, spit = 0 }: { nodes: GlobeNo
 
   return (
     <div className="relative h-full w-full">
-      <div className={`absolute inset-0 ${reduced ? "" : "avatar-orbit"}`}>
-        {nodes.map((node, index) => {
-          const angle = (index / Math.max(nodes.length, 1)) * 360;
-          const on = active === node.symbol;
-          return (
-            <span key={node.symbol} className="absolute left-1/2 top-1/2" style={{ transform: `rotate(${angle}deg) translateY(-46px)` }}>
-              <span className={`block rounded-full ${on ? "h-2.5 w-2.5 bg-[#ffcc00]" : "h-1.5 w-1.5 bg-[#9fd8ff]"}`} />
-            </span>
-          );
-        })}
-      </div>
       <div className={`absolute left-1/2 top-1/2 ${reduced ? "-translate-x-1/2 -translate-y-1/2" : "avatar-bob"}`}>
         <div className={reduced ? "" : reacting ? "avatar-spit" : "avatar-breathe"}>
           <svg ref={orb} data-avatar-orb viewBox="20 20 472 472" className="h-[84px] w-[84px]" role="img" aria-label="Avatar">
-            <circle cx="256" cy="256" r="236" fill="#fff" />
+            <image href="/profile-picture.png" x="0" y="0" width="512" height="512" />
             <g ref={eyes}>
               {EYES.map((eye) => (
                 <g key={`${eye.cx}-${eye.cy}`} transform={`translate(${eye.cx} ${eye.cy}) rotate(55)`}>
-                  <rect x={-eye.length / 2} y={-eye.thick / 2} width={eye.length} height={eye.thick} rx={eye.thick / 2} fill="#000" transform={`scale(1 ${blink})`} />
+                  <rect x={-eye.length / 2} y={-eye.thick / 2} width={eye.length} height={eye.thick} rx={eye.thick / 2} fill="#fff" transform={`scale(1 ${blink})`} />
                 </g>
               ))}
             </g>

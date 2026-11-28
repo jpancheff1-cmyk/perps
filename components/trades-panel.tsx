@@ -1,14 +1,14 @@
 "use client";
 
 import { formatLeverage, formatPct, formatPrice, formatUsd, toneClass } from "@/lib/format";
-import { buildOpenFutures } from "@/lib/futures-book";
+import { buildOpenFutures, withLivePrices } from "@/lib/futures-book";
 import { formatSofiaWhen } from "@/lib/time";
-import type { AccountPayload, Trade } from "@/lib/types";
+import type { AccountPayload, TickerPrice, Trade } from "@/lib/types";
 
-export function OpenFuturesTrades({ account, query = "", settled = [], paper = false }: { account: AccountPayload; query?: string; settled?: Trade[]; paper?: boolean }) {
+export function OpenFuturesTrades({ account, query = "", settled = [], paper = false, prices = [] }: { account: AccountPayload; query?: string; settled?: Trade[]; paper?: boolean; prices?: TickerPrice[] }) {
   const book = buildOpenFutures(account.positions, account.orders ?? []);
   const needle = query.trim().toLowerCase();
-  const rows = book.rows.filter((row) => !needle || `${row.symbol} ${row.side}`.toLowerCase().includes(needle));
+  const rows = withLivePrices(book.rows, prices).filter((row) => !needle || `${row.symbol} ${row.side}`.toLowerCase().includes(needle));
   const closed = settled.filter((trade) => !needle || `${trade.coin} ${trade.side}`.toLowerCase().includes(needle));
   return (
     <section className="fui-panel flex h-full min-h-0 flex-col p-3 text-[13px] text-[#d7eef8]">
@@ -33,7 +33,7 @@ export function OpenFuturesTrades({ account, query = "", settled = [], paper = f
                 </div>
               </div>
               <p className="text-[10px] leading-snug break-words text-[#d7eef8] uppercase">
-                {row.side} · size {row.size == null ? "—" : row.size} · entry {formatPrice(row.entry)} · mark {formatPrice(row.mark)} · upnl {formatUsd(row.pnlUsd)} · stop {formatPrice(row.stop)} · tp {formatPrice(row.target)} · trail {formatPrice(row.trail)}
+                {row.side} · size {row.size == null ? "—" : row.size} · entry {formatPrice(row.entry)} · price {formatPrice(row.mark)} · upnl {formatUsd(row.pnlUsd)} · stop {formatPrice(row.stop)} · tp {formatPrice(row.target)} · trail {formatPrice(row.trail)}
               </p>
             </article>
           ))}

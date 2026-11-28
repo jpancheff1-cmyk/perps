@@ -8,7 +8,7 @@ import { POST as forceStop } from "../app/api/force-stop/route.ts";
 import { applyIngest, readFeed, resetStoreForTests } from "../lib/activity-store.ts";
 import { SESSION_COOKIE, signSession } from "../lib/auth.ts";
 import { readLevels } from "../lib/levels.ts";
-import { buildOpenFutures } from "../lib/futures-book.ts";
+import { buildOpenFutures, futuresPnlPct, withLivePrices } from "../lib/futures-book.ts";
 import { fetchKrakenEarn, fetchKrakenOpenOrders, fetchKrakenSpot, parseEarnAllocations, parseOpenOrders, parseSpotBalances, signSpotRequest } from "../lib/kraken-spot.ts";
 
 test("spot signature matches Kraken's documented AddOrder vector", () => {
@@ -172,6 +172,47 @@ test("open futures rows link reduce-only stop and target orders", () => {
   assert.equal(book.rows[1].pending, true);
   assert.equal(book.rows[1].symbol, "PF_ETHUSD");
   assert.equal(buildOpenFutures([], []).rows.length, 0);
+});
+
+test("a missing mark becomes the public price and client uPnL follows that price", () => {
+  const book = buildOpenFutures(
+    [
+      {
+        symbol: "PF_NEARUSD",
+        side: "short",
+        size: 1749,
+        entryPrice: 3.005,
+        markPrice: null,
+        unrealizedPnl: 4.44,
+        leverage: 2,
+        liquidationPrice: null,
+        openedAt: null,
+      },
+      {
+        symbol: "PI_XBTUSD",
+        side: "long",
+        size: 10,
+        entryPrice: 60000,
+        markPrice: null,
+        unrealizedPnl: 12,
+        leverage: 3,
+        liquidationPrice: null,
+        openedAt: null,
+      },
+    ],
+    [],
+  );
+  assert.equal(book.rows[0].mark, null);
+  const priced = withLivePrices(book.rows, [{ symbol: "pf_nearusd", price: 3.001 }]);
+  assert.equal(priced[0].mark, 3.001);
+  assert.equal(priced[0].pnlUsd, (3.005 - 3.001) * 1749);
+  assert.equal(priced[0].pnlPct, futuresPnlPct("short", 3.005, 3.001, 2));
+  assert.equal(priced[1].mark, null);
+  assert.equal(priced[1].pnlUsd, 12);
+  const inverse = withLivePrices(priced, [{ symbol: "PI_XBTUSD", price: 61000 }]);
+  assert.equal(inverse[1].mark, 61000);
+  assert.equal(inverse[1].pnlUsd, 12);
+  assert.equal(inverse[1].pnlPct, futuresPnlPct("long", 60000, 61000, 3));
 });
 
 test("spot balances prefer BalanceEx and price them from the ticker", () => {

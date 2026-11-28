@@ -237,6 +237,9 @@ export type MarketLiquidation = {
 
 export type FuturesQuote = { coin: string; price: number; change24: number };
 
+/** Public Kraken Futures mark, or last when mark is absent, keyed by contract symbol. */
+export type TickerPrice = { symbol: string; price: number };
+
 export type DeskPayload = {
   account: AccountPayload;
   spot: SpotPayload;
@@ -250,6 +253,7 @@ export type DeskPayload = {
   marketLiqs: MarketLiquidation[];
   quotes: FuturesQuote[];
   quotesAt: number | null;
+  tickerPrices: TickerPrice[];
   signals: SignalWatch;
   serverTime: number;
   chatRelay: boolean;

@@ -3,7 +3,7 @@ import { getSnapshot } from "@/lib/account-poller";
 import { readFeed } from "@/lib/activity-store";
 import { loadBotsView } from "@/lib/bots";
 import { readEquity } from "@/lib/equity-store";
-import { getFuturesQuotes } from "@/lib/futures-quotes";
+import { getFuturesQuotes, getTickerPrices } from "@/lib/futures-quotes";
 import { getMarketLiquidations } from "@/lib/market-liqs";
 import { getSignalWatch } from "@/lib/signal-poller";
 import { coinFromPerp } from "@/lib/universe";
@@ -19,9 +19,10 @@ export async function GET(request: NextRequest) {
   if (denied) return denied;
   const snapshot = await getSnapshot();
   const feed = readFeed();
-  const [marketLiqs, quotes] = await Promise.all([
+  const [marketLiqs, quotes, tickerPrices] = await Promise.all([
     getMarketLiquidations(snapshot.account.positions.map((position) => position.symbol)),
     getFuturesQuotes(),
+    getTickerPrices(),
   ]);
   const signals = await getSignalWatch(snapshot.account.positions.filter((position) => position.size).map((position) => coinFromPerp(position.symbol)));
   return NextResponse.json(
@@ -34,6 +35,7 @@ export async function GET(request: NextRequest) {
       marketLiqs,
       quotes: quotes.quotes,
       quotesAt: quotes.quotes.length ? quotes.at : null,
+      tickerPrices: tickerPrices.prices,
       signals,
       serverTime: Date.now(),
       chatRelay: chatRelayConfigured(),
